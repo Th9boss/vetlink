@@ -1,0 +1,29 @@
+cd /bkup/noxo/vetlink
+
+cat > .gitignore <<'EOF'
+# Binaires et archives
+*.zip
+*.tar
+*.tar.gz
+*.7z
+
+# Générés / lourds
+uploads/
+*.pdf
+*.mp4
+*.mov
+*.gif
+
+# Dépendances & vendors
+vendor/
+
+# Config sensibles
+config/env.php
+config/config.php
+
+# Logs / caches
+*.log
+cache/
+.tmp/
+.DS_Store
+EOF

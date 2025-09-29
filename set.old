@@ -1,0 +1,63 @@
+#!/bin/bash
+
+# chemin d’installation (à adapter)
+APP_DIR=/bkup/noxo/vetlink
+
+echo "Création du projet dans $APP_DIR ..."
+
+# créer dossier racine
+mkdir -p $APP_DIR
+
+cd $APP_DIR || exit
+
+# dossiers principaux
+mkdir -p assets/css assets/js assets/img
+mkdir -p uploads/clients uploads/patients
+mkdir -p includes
+mkdir -p features
+mkdir -p api
+mkdir -p config
+mkdir -p cron
+
+# fichiers racine
+touch index.php
+touch .gitignore
+touch README.md
+
+# includes
+touch includes/header.php
+touch includes/footer.php
+touch includes/menu.php
+touch includes/auth.php
+touch includes/db.php
+touch includes/helpers.php
+
+# config
+touch config/config.php
+touch config/env.php
+
+# features (MVP)
+touch features/clients.php
+touch features/client_view.php
+touch features/patients.php
+touch features/patient_view.php
+touch features/consultation_edit.php
+touch features/analyses.php
+touch features/imagerie.php
+touch features/interventions.php
+touch features/factures.php
+touch features/rappels.php
+touch features/settings.php
+
+# API
+touch api/clients.php
+touch api/patients.php
+touch api/consultations.php
+touch api/interventions.php
+touch api/factures.php
+touch api/rappels.php
+
+# CRON
+touch cron/rappels_cron.php
+
+echo "Arborescence VETLINK créée avec succès ✅"
