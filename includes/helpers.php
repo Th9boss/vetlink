@@ -44,7 +44,7 @@ function json_response($data, int $status = 200): void {
 
 // Pagination util simple
 function paginate_params(int $defaultLimit = 20, int $maxLimit = 100): array {
-    $page  = max(1, (int)($_GET['page']  ?? 1));
+    $page  = max(1, (int)($_GET['p'] ?? 1));
     $limit = min($maxLimit, max(1, (int)($_GET['limit'] ?? $defaultLimit)));
     $offset = ($page - 1) * $limit;
     return [$limit, $offset, $page];

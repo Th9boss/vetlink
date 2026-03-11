@@ -531,8 +531,8 @@ function human_age(?string $birth): string {
           $prev = max(1, $page-1);
           $next = min($pages, $page+1);
         ?>
-        <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.$prev ?>">Précédent</a></li>
-        <li class="page-item <?= $page>=$pages?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&page='.$next ?>">Suivant</a></li>
+        <li class="page-item <?= $page<=1?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&p='.$prev ?>">Précédent</a></li>
+        <li class="page-item <?= $page>=$pages?'disabled':'' ?>"><a class="page-link" href="<?= $base.'&p='.$next ?>">Suivant</a></li>
       </ul>
     </nav>
   </div>

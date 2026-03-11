@@ -722,10 +722,10 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
     <nav class="ms-auto">
       <ul class="pagination mb-0">
         <li class="page-item <?= $pageNum<=1?'disabled':'' ?>">
-          <a class="page-link" href="<?= $base.'&page='.(max(1,$pageNum-1)) ?>">Précédent</a>
+          <a class="page-link" href="<?= $base.'&p='.(max(1,$pageNum-1)) ?>">Précédent</a>
         </li>
         <li class="page-item <?= $pageNum>=$pages?'disabled':'' ?>">
-          <a class="page-link" href="<?= $base.'&page='.(min($pages,$pageNum+1)) ?>">Suivant</a>
+          <a class="page-link" href="<?= $base.'&p='.(min($pages,$pageNum+1)) ?>">Suivant</a>
         </li>
       </ul>
     </nav>
