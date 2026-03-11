@@ -1,6 +1,7 @@
 <?php
 // includes/db.php
 require_once __DIR__ . '/../config/env.php';
+require_once __DIR__ . '/migrations.php';
 
 function db(): PDO {
     static $pdo = null;
@@ -15,9 +16,12 @@ function db(): PDO {
 
     try {
         $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+        if (AUTO_MIGRATE) {
+            run_pending_migrations($pdo);
+        }
         return $pdo;
     } catch (PDOException $e) {
-        if (APP_ENV === 'dev') {
+        if (APP_ENV === 'dev' || (defined('DEBUG') && DEBUG)) {
             die('DB connection failed: ' . $e->getMessage());
         }
         http_response_code(500);

@@ -62,11 +62,17 @@ function fmt_age(?string $birth): string {
 function fmt_date_human(?string $dt): string {
     if (!$dt) return '—'; $ts = strtotime($dt); return $ts?date('d/m/Y',$ts):'—';
 }
+function fmt_weight(?float $weight): string {
+    if ($weight === null) return '';
+    $text = number_format($weight, 2, ',', '');
+    $text = rtrim(rtrim($text, '0'), ',');
+    return $text . ' Kg';
+}
 
 /* ============ DB access ============ */
 function fetch_config(){ $st=db()->query("SELECT * FROM config ORDER BY id ASC LIMIT 1"); return $st->fetch() ?: []; }
 function fetch_user_by_id(?int $uid){ if(!$uid)return null; $st=db()->prepare("SELECT * FROM users WHERE id=?"); $st->execute([$uid]); return $st->fetch() ?: null; }
-function fetch_last_weight_for_patient(int $pid): ?int { $st=db()->prepare("SELECT poids FROM consultations WHERE patient_id=? AND poids IS NOT NULL ORDER BY date_consult DESC, id DESC LIMIT 1"); $st->execute([$pid]); $w=$st->fetchColumn(); return $w!==false?(int)$w:null; }
+function fetch_last_weight_for_patient(int $pid): ?float { $st=db()->prepare("SELECT poids FROM consultations WHERE patient_id=? AND poids IS NOT NULL ORDER BY date_consult DESC, id DESC LIMIT 1"); $st->execute([$pid]); $w=$st->fetchColumn(); return $w!==false?(float)$w:null; }
 function fullname(?string $a, ?string $b): string { $a=trim((string)$a); $b=trim((string)$b); $x=trim($a.' '.$b); return $x!==''?$x:'—'; }
 
 /* ============ Inputs ============ */
@@ -100,7 +106,7 @@ if ($type==='consultation') {
     $animal_nom=$row['p_nom']?:'—'; $animal_espece=$row['p_espece']?:'—'; $animal_age=fmt_age($row['p_birth']??null);
     $owner_name=fullname($row['cl_nom']??null,$row['cl_prenom']??null);
     $ord_date=$row['date_consult']??null; $ord_content=trim((string)($row['traitement']??''));
-    if ($row['poids']!==null && $row['poids']!=='') $animal_poids=(int)$row['poids'].' Kg';
+    if ($row['poids']!==null && $row['poids']!=='') $animal_poids=fmt_weight((float)$row['poids']);
     $cachet_rel=norm_rel_upload($row['cachet_img']??null); $sign_rel=norm_rel_upload($row['signature_img']??null);
 } else {
     $q=db()->prepare("SELECT i.*, p.id pid,p.nom p_nom,p.espece p_espece,p.date_naissance p_birth,p.client_id,
@@ -114,7 +120,7 @@ if ($type==='consultation') {
     $owner_name=fullname($row['cl_nom']??null,$row['cl_prenom']??null);
     $ord_date=$row['date_intervention'] ?? ($row['created_at'] ?? null);
     $ord_content=trim((string)($row['details']??''));
-    $w=fetch_last_weight_for_patient((int)$row['pid']); if($w!==null) $animal_poids=$w.' Kg';
+    $w=fetch_last_weight_for_patient((int)$row['pid']); if($w!==null) $animal_poids=fmt_weight($w);
     $cu=current_user(); if($cu && !empty($cu['id'])){ $u=fetch_user_by_id((int)$cu['id']); $cachet_rel=norm_rel_upload($u['cachet_img']??null); $sign_rel=norm_rel_upload($u['signature_img']??null); }
 }
 if ($animal_poids==='—') $animal_poids='';
@@ -336,7 +342,7 @@ if ($format==='pdf') {
         $o = new $opt();
         if ($root && method_exists($o,'setChroot')) $o->setChroot($root);
         if (method_exists($o,'set')) {
-            $o->set('isRemoteEnabled', true);
+            $o->set('isRemoteEnabled', false); // images via chemins absolus uniquement (pas de SSRF)
             $o->set('defaultFont', 'DejaVu Sans');
         }
         if (method_exists($dompdf,'setOptions')) $dompdf->setOptions($o);

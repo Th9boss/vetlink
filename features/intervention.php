@@ -234,7 +234,7 @@ capture_handle($storeRel, [
   'modal_id' => 'capIntervModal',
   'maxWidth' => 1600,
   'quality'  => 0.9,
-  'debug'    => 1,
+  'debug'    => (APP_ENV === 'dev' ? 1 : 0),
 ]);
 echo '<script>window.STORE_DIR = ' . json_encode($storeRel) . ';</script>';
 ?>

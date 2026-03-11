@@ -1,29 +1,36 @@
-cd /bkup/noxo/vetlink
+# ── Environnement sensible (NE JAMAIS committer) ───────────
+.env
 
-cat > .gitignore <<'EOF'
-# Binaires et archives
+# ── Uploads utilisateurs ───────────────────────────────────
+uploads/
+
+# ── Dépendances Composer ───────────────────────────────────
+vendor/
+
+# ── Archives et binaires ───────────────────────────────────
 *.zip
 *.tar
 *.tar.gz
 *.7z
+*.rar
 
-# Générés / lourds
-uploads/
+# ── Fichiers générés ───────────────────────────────────────
 *.pdf
 *.mp4
 *.mov
-*.gif
 
-# Dépendances & vendors
-vendor/
+# ── Template à garder ─────────────────────────────────────
+!.env.example
 
-# Config sensibles
-config/env.php
-config/config.php
-
-# Logs / caches
+# ── Logs / caches ──────────────────────────────────────────
 *.log
 cache/
 .tmp/
+
+# ── IDE / OS ───────────────────────────────────────────────
 .DS_Store
-EOF
+.vscode/
+.idea/
+*.swp
+*.swo
+Thumbs.db

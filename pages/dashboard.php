@@ -174,7 +174,7 @@
 
   <!-- KPIs (remplacement des gauges par progress bars) -->
   <div class="row g-4 mt-1">
-    <div class="col-6 col-lg-6">
+    <div class="col-12 col-sm-6">
       <div class="card card-ghost">
         <div class="card-header d-flex align-items-center justify-content-between">
           <span class="badge bg-primary-subtle text-primary-emphasis rounded-pill"><i class="bi bi-speedometer2"></i> Actes non facturés</span>
@@ -186,7 +186,7 @@
         </div>
       </div>
     </div>
-    <div class="col-6 col-lg-6">
+    <div class="col-12 col-sm-6">
       <div class="card card-ghost">
         <div class="card-header d-flex align-items-center justify-content-between">
           <span class="badge bg-success-subtle text-success-emphasis rounded-pill"><i class="bi bi-cash-coin"></i> Impayés vs Factures</span>

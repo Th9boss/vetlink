@@ -28,7 +28,10 @@ if ($me && ($me['role'] ?? '') === 'ADMIN') {
   <title><?= h(SITE_NAME) ?></title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b3d5c">
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+        rel="stylesheet"
+        integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
+        crossorigin="anonymous">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
   <link href="assets/css/app.css" rel="stylesheet">
   <style>
@@ -96,7 +99,7 @@ if ($me && ($me['role'] ?? '') === 'ADMIN') {
 
     <!-- Offcanvas (mobile) -->
     <div class="offcanvas offcanvas-end custom-offcanvas d-lg-none"
-         tabindex="-1" id="offcanvasNav" data-bs-scroll="true">
+         tabindex="-1" id="offcanvasNav" data-bs-scroll="false" data-bs-backdrop="true">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title nav-brand">
           <img src="assets/img/logo-w.png" alt="Logo">

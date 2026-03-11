@@ -69,6 +69,12 @@ function delete_patient_photo(?string $rel): void {
     if ($abs && is_file($abs)) @unlink($abs);
 }
 
+function format_birth_fr(?string $date): string {
+    if (!$date || $date === '0000-00-00') return '—';
+    $ts = strtotime($date);
+    return $ts ? date('d/m/Y', $ts) : (string)$date;
+}
+
 /* ========================= ACTIONS (POST) ========================= */
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -460,7 +466,7 @@ function human_age(?string $birth): string {
                     <?= h(trim(($r['patient_espece']?:'').' / '.($r['patient_race']?:''),' /')) ?> &middot; <?= h($r['patient_sexe']) ?>
                   </div>
                   <div class="text-muted small">Client : <?= h($r['client_nom'].' '.$r['client_prenom']) ?></div>
-                  <div class="text-muted small">Naissance : <?= h($r['patient_date_naissance'] ?: '—') ?> (<?= h(human_age($r['patient_date_naissance'])) ?>)</div>
+                  <div class="text-muted small">Naissance : <?= h(format_birth_fr($r['patient_date_naissance'])) ?> (<?= h(human_age($r['patient_date_naissance'])) ?>)</div>
 
                   <div class="mt-3 d-grid gap-2">
                     <!-- Fiche pleine largeur -->
@@ -682,6 +688,12 @@ function human_age(?string $birth): string {
   // Remplissage rapide du formulaire d’édition via le bouton stylo
 /* --- Remplissage rapide du formulaire d’édition (bouton stylo) --- */
 (function(){
+  function isoToFr(dateIso){
+    if (!dateIso || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return '';
+    const [y, m, d] = dateIso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
   // helper pour retrouver le libellé du client à partir de son id
   function findClientLabelById(id){
     try {
@@ -738,9 +750,9 @@ function human_age(?string $birth): string {
       const birthHidden = document.getElementById('npatient_date_naissance_hidden');
       const birthHint   = document.getElementById('npatient_naissance_hint');
       const dateIso     = (p.date_naissance || '').trim();
-      if (birthFree)   birthFree.value   = dateIso;
+      if (birthFree)   birthFree.value   = isoToFr(dateIso);
       if (birthHidden) birthHidden.value = dateIso;
-      if (birthHint && dateIso) birthHint.textContent = '→ Interprété comme date : ' + dateIso;
+      if (birthHint && dateIso) birthHint.textContent = '→ Interprété comme date : ' + isoToFr(dateIso);
 
       // -------- PHOTO (aperçu) --------------
       const prev = document.getElementById('npatient_photo_preview');
@@ -758,6 +770,12 @@ function human_age(?string $birth): string {
 <script>
 /* --- Ouvrir le formulaire et le pré-remplir de façon fiable --- */
 (function(){
+  function isoToFr(dateIso){
+    if (!dateIso || !/^\d{4}-\d{2}-\d{2}$/.test(dateIso)) return '';
+    const [y, m, d] = dateIso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
   function findClientLabelById(id){
     try{
       id = parseInt(id,10);
@@ -797,9 +815,9 @@ function human_age(?string $birth): string {
     const birthHidden = document.getElementById('npatient_date_naissance_hidden');
     const birthHint   = document.getElementById('npatient_naissance_hint');
     const dateIso     = (p.date_naissance || '').trim();
-    if (birthFree)   birthFree.value   = dateIso;
+    if (birthFree)   birthFree.value   = isoToFr(dateIso);
     if (birthHidden) birthHidden.value = dateIso;
-    if (birthHint)   birthHint.textContent = dateIso ? '→ Interprété comme date : '+dateIso : 'Exemples : 2024-05-01 • 6 • 6m • 6 mois';
+    if (birthHint)   birthHint.textContent = dateIso ? '→ Interprété comme date : ' + isoToFr(dateIso) : 'Exemples : 01/05/2024 • 6 • 6m • 6 mois';
 
     // photo preview
     const prev = document.getElementById('npatient_photo_preview');
@@ -869,7 +887,7 @@ function human_age(?string $birth): string {
     const birthFree   = document.getElementById('npatient_naissance_free'); if (birthFree) birthFree.value = '';
     const birthHidden = document.getElementById('npatient_date_naissance_hidden'); if (birthHidden) birthHidden.value = '';
     const birthHint   = document.getElementById('npatient_naissance_hint');
-    if (birthHint) birthHint.textContent = 'Exemples : 2024-05-01 • 6 • 6m • 6 mois';
+    if (birthHint) birthHint.textContent = 'Exemples : 01/05/2024 • 6 • 6m • 6 mois';
 
     // photo
     const prev = document.getElementById('npatient_photo_preview');

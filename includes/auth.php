@@ -5,9 +5,15 @@ require_once __DIR__ . '/db.php';
 
 if (session_status() === PHP_SESSION_NONE) {
     session_name(SESSION_NAME);
+
+    // cookie_secure : HTTPS natif ou reverse proxy (X-Forwarded-Proto)
+    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+            || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $secure  = defined('COOKIE_SECURE') ? COOKIE_SECURE : $isHttps;
+
     session_start([
         'cookie_httponly' => true,
-        'cookie_secure'   => isset($_SERVER['HTTPS']),
+        'cookie_secure'   => $secure,
         'cookie_samesite' => 'Lax',
     ]);
 }
@@ -38,6 +44,8 @@ function auth_login(string $email, string $password): bool {
     $stmt->execute([$email]);
     $user = $stmt->fetch();
     if ($user && password_verify($password, $user['password_hash'])) {
+        // Régénère l'ID de session pour prévenir la fixation de session
+        session_regenerate_id(true);
         unset($user['password_hash']);
         $_SESSION['user'] = $user;
         return true;
@@ -47,5 +55,11 @@ function auth_login(string $email, string $password): bool {
 
 function auth_logout(): void {
     $_SESSION = [];
+    if (ini_get('session.use_cookies')) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000,
+            $p['path'], $p['domain'], $p['secure'], $p['httponly']
+        );
+    }
     session_destroy();
 }

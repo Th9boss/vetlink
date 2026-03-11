@@ -5,13 +5,45 @@
 // - Expose window.openCaptureModal({ onDone(files: string[]) })
 //
 // Dépendances front : Bootstrap 5 (CSS+JS) + (optionnel) ./assets/vendor/gif.js/gif.js & gif.worker.js
-//
-// Exemple d’usage (dans cap.php ou une page de ton app):
-//   require_once __DIR__.'/includes/capture.php';
+
+// ── Protection : accès direct à l’endpoint upload ──────────────────────────
+// Quand le fichier est requêté directement via HTTP (capture_upload=1),
+// il faut authentifier avant tout traitement.
+if (isset($_GET['capture_upload']) && !function_exists('capture_handle')) {
+    require_once __DIR__ . '/auth.php';
+    if (!is_logged_in()) {
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code(401);
+        echo json_encode(['ok' => false, 'error' => 'unauthorized']);
+        exit;
+    }
+}
 //   capture_handle('uploads/captest', ['modal_id'=>'capTestModal', 'debug'=>1]);
 //   <button onclick="openCaptureModal({onDone:(files)=>console.log(files)})">Joindre</button>
 
 if (!function_exists('capture_handle')) {
+
+  /**
+   * Valide que storeDir est un chemin relatif sûr à l'intérieur de uploads/.
+   * Retourne le chemin nettoyé ou null si invalide.
+   */
+  function _cap_validate_store_dir(string $dir): ?string {
+    // Neutralise null bytes, CRLF et backslashes
+    $dir = str_replace(["\0", "\r", "\n", '\\'], ['', '', '', '/'], trim($dir));
+    // Supprime le slash initial
+    $dir = ltrim($dir, '/');
+    // Doit commencer par uploads/
+    if (strncmp($dir, 'uploads/', 8) !== 0) return null;
+    // Interdit la traversal de répertoire
+    foreach (explode('/', $dir) as $seg) {
+      if ($seg === '..' || $seg === '.') return null;
+    }
+    // Caractères autorisés seulement : alphanumériques, /, - , _
+    if (!preg_match('#^[a-zA-Z0-9/_\-]+$#', $dir)) return null;
+    // Longueur max
+    if (strlen($dir) > 200) return null;
+    return $dir;
+  }
 
   function _cap_abs(string $path): string {
     $root = realpath(__DIR__ . '/..');
@@ -171,7 +203,16 @@ if (!function_exists('capture_handle')) {
   // —— Endpoint AJAX: ?capture_upload=1 (+ debug optionnel) ——
   if (isset($_GET['capture_upload'])) {
     header('Content-Type: application/json; charset=utf-8');
-    $dir    = $_POST['storeDir'] ?? 'uploads/misc';
+
+    // Validation stricte du répertoire cible (anti path-traversal)
+    $rawDir = $_POST['storeDir'] ?? 'uploads/misc';
+    $dir    = _cap_validate_store_dir($rawDir);
+    if ($dir === null) {
+      http_response_code(400);
+      echo json_encode(['ok' => false, 'error' => 'invalid_store_dir']);
+      exit;
+    }
+
     $mode   = $_POST['mode'] ?? 'data';
     $debug  = (isset($_REQUEST['debug']) && in_array(strtolower((string)$_REQUEST['debug']), ['1','true','yes'], true));
     $out    = ['ok'=>false, 'files'=>[]];

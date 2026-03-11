@@ -3,7 +3,7 @@
 // Formulaire "Nouveau / Modifier patient" avec :
 // - recherche client typeahead (sélection => client_id)
 // - espèce: suggestions (valeurs uniques) + saisie libre
-// - naissance: "YYYY-MM-DD" OU âge en mois ("18", "18m", "18 mois") => converti en date
+    // - naissance: "DD/MM/YYYY" OU âge en mois ("18", "18m", "18 mois") => converti en date
 // - compression de la photo côté client (JPEG)
 
 if (!isset($clients)) {
@@ -68,8 +68,8 @@ if (!isset($species)) {
     <!-- Naissance: date OU âge en mois -->
     <div class="col-md-3">
       <label class="form-label">Naissance (date ou âge en mois)</label>
-      <input id="npatient_naissance_free" class="form-control" placeholder="YYYY-MM-DD ou 18m">
-      <div class="form-text" id="npatient_naissance_hint">Exemples : 2024-05-01 • 6 • 6m • 6 mois</div>
+      <input id="npatient_naissance_free" class="form-control" placeholder="dd/mm/yyyy ou 18m" inputmode="numeric">
+      <div class="form-text" id="npatient_naissance_hint">Exemples : 01/05/2024 • 6 • 6m • 6 mois</div>
     </div>
 
     <div class="col-md-6">
@@ -177,7 +177,7 @@ const NPATIENT_CLIENTS = <?php
   });
 })();
 
-// ======== Naissance: parse "YYYY-MM-DD" OU "18m"/"18 mois"/"18" ========
+// ======== Naissance: parse "DD/MM/YYYY" OU "18m"/"18 mois"/"18" ========
 (function(){
   const free = document.getElementById('npatient_naissance_free');
   const hidden = document.getElementById('npatient_date_naissance_hidden');
@@ -193,11 +193,34 @@ const NPATIENT_CLIENTS = <?php
     return `${y}-${m}-${da}`;
   }
 
+  function toDisplayDate(iso){
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return '';
+    const [y, m, d] = iso.split('-');
+    return `${d}/${m}/${y}`;
+  }
+
   function parseValue(val){
     if (!val) return '';
     val = val.trim();
-    // format date directe
+
+    // format date ISO directe
     if (/^\d{4}-\d{2}-\d{2}$/.test(val)) return val;
+
+    // format date FR
+    const fr = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (fr) {
+      const day = parseInt(fr[1], 10);
+      const month = parseInt(fr[2], 10);
+      const year = parseInt(fr[3], 10);
+      const dt = new Date(year, month - 1, day);
+      if (
+        dt.getFullYear() === year &&
+        dt.getMonth() === month - 1 &&
+        dt.getDate() === day
+      ) {
+        return toDateString(dt);
+      }
+    }
 
     // âge en mois : "18", "18m", "18 mois"
     const m = val.toLowerCase().match(/^(\d+)\s*(m|mois)?$/);
@@ -222,10 +245,10 @@ const NPATIENT_CLIENTS = <?php
     const parsed = parseValue(v);
     if (parsed) {
       hidden.value = parsed;
-      if (hint) hint.textContent = `→ Interprété comme date : ${parsed}`;
+      if (hint) hint.textContent = `→ Interprété comme date : ${toDisplayDate(parsed)}`;
     } else {
       hidden.value = '';
-      if (hint) hint.textContent = 'Exemples : 2024-05-01 • 6 • 6m • 6 mois';
+      if (hint) hint.textContent = 'Exemples : 01/05/2024 • 6 • 6m • 6 mois';
     }
   }
 
@@ -243,7 +266,7 @@ const NPATIENT_CLIENTS = <?php
     // Si champ naissance rempli mais non interprétable → bloquer
     if (free.value.trim() !== '' && hidden.value === '') {
       e.preventDefault();
-      alert('Champ "Naissance" invalide. Saisissez une date (YYYY-MM-DD) ou un âge en mois (ex: 6, 6m, 6 mois).');
+      alert('Champ "Naissance" invalide. Saisissez une date (dd/mm/yyyy) ou un âge en mois (ex: 6, 6m, 6 mois).');
       free.focus();
       return;
     }

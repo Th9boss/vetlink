@@ -132,7 +132,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   exit;
 }
 
-require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container py-3">
   <h1 class="h4 mb-3">Mon profil</h1>
@@ -473,4 +472,3 @@ require_once __DIR__ . '/../includes/header.php';
   });
 })();
 </script>
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>

@@ -70,7 +70,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $cfg = db()->query("SELECT * FROM config WHERE id=1")->fetch(PDO::FETCH_ASSOC);
 
 /* ========= Vue ========= */
-require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container py-3">
   <div class="d-flex align-items-center gap-3 mb-3">
@@ -210,5 +209,3 @@ require_once __DIR__ . '/../includes/header.php';
   .bg-primary-subtle { background: #e7f1ff !important; }
   .bg-dark-subtle    { background: #eef0f2 !important; }
 </style>
-
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>

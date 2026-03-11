@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($prenom === '' || $nom === '') $errors[] = "Prénom et nom sont obligatoires.";
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Email invalide.";
     if (!valid_role($role)) $errors[] = "Rôle invalide.";
-    if (strlen($pass) < 6) $errors[] = "Mot de passe trop court (>= 6).";
+    if (strlen($pass) < 8) $errors[] = "Mot de passe trop court (>= 8 caractères).";
     if ($pass !== $pass2) $errors[] = "Les mots de passe ne correspondent pas.";
 
     if (!$errors) {
@@ -100,7 +100,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $errors = [];
     if ($id <= 0) $errors[] = "Utilisateur invalide.";
-    if (strlen($pass) < 6) $errors[] = "Mot de passe trop court (>= 6).";
+    if (strlen($pass) < 8) $errors[] = "Mot de passe trop court (>= 8 caractères).";
     if ($pass !== $pass2) $errors[] = "Les mots de passe ne correspondent pas.";
 
     if (!$errors) {
@@ -115,7 +115,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $users = db()->query("SELECT id, role, prenom, nom, email, gsm, created_at FROM users ORDER BY created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 
 // --- Vue ---
-require_once __DIR__ . '/../includes/header.php';
 ?>
 <div class="container py-3">
   <h1 class="h4 mb-3">Utilisateurs</h1>
@@ -162,11 +161,11 @@ require_once __DIR__ . '/../includes/header.php';
         </div>
         <div class="col-md-3">
           <label class="form-label">Mot de passe</label>
-          <input type="password" name="password" class="form-control" required minlength="6">
+          <input type="password" name="password" class="form-control" required minlength="8">
         </div>
         <div class="col-md-3">
           <label class="form-label">Confirmation</label>
-          <input type="password" name="password_confirm" class="form-control" required minlength="6">
+          <input type="password" name="password_confirm" class="form-control" required minlength="8">
         </div>
         <div class="col-md-3 d-flex align-items-end justify-content-end">
           <button class="btn btn-primary">Créer</button>
@@ -261,17 +260,17 @@ require_once __DIR__ . '/../includes/header.php';
                 <input type="hidden" name="id" value="<?= (int)$u['id'] ?>">
                 <div class="col-md-3">
                   <label class="form-label">Nouveau mot de passe</label>
-                  <input type="password" name="new_password" class="form-control" minlength="6" required>
+                  <input type="password" name="new_password" class="form-control" minlength="8" required>
                 </div>
                 <div class="col-md-3">
                   <label class="form-label">Confirmation</label>
-                  <input type="password" name="new_password_confirm" class="form-control" minlength="6" required>
+                  <input type="password" name="new_password_confirm" class="form-control" minlength="8" required>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                   <button class="btn btn-warning btn-sm">Réinitialiser</button>
                 </div>
                 <div class="col-md-4 d-flex align-items-end">
-                  <span class="text-muted small">Longueur minimale 6 caractères.</span>
+                  <span class="text-muted small">Longueur minimale 8 caractères.</span>
                 </div>
               </form>
             </td>
@@ -281,4 +280,3 @@ require_once __DIR__ . '/../includes/header.php';
     </table>
   </div>
 </div>
-<?php require_once __DIR__ . '/../includes/footer.php'; ?>
