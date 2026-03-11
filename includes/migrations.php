@@ -66,16 +66,32 @@ function apply_sql_migration(PDO $pdo, string $file, string $name): void {
     }
 }
 
-function run_pending_migrations(PDO $pdo): void {
+function pending_migration_names(PDO $pdo): array {
+    ensure_migrations_table($pdo);
+    $applied = array_flip(applied_migrations($pdo));
+    $pending = [];
+
+    foreach (migration_sql_files() as $file) {
+        $name = basename($file);
+        if (!isset($applied[$name])) {
+            $pending[] = $name;
+        }
+    }
+
+    return $pending;
+}
+
+function run_pending_migrations(PDO $pdo): array {
     static $ran = false;
     if ($ran) {
-        return;
+        return [];
     }
     $ran = true;
 
     ensure_migrations_table($pdo);
 
     $applied = array_flip(applied_migrations($pdo));
+    $executed = [];
 
     foreach (migration_sql_files() as $file) {
         $name = basename($file);
@@ -83,5 +99,8 @@ function run_pending_migrations(PDO $pdo): void {
             continue;
         }
         apply_sql_migration($pdo, $file, $name);
+        $executed[] = $name;
     }
+
+    return $executed;
 }
