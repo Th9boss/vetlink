@@ -197,12 +197,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } catch (_) {}
       }
 
-      const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
-        || window.navigator.standalone === true;
-      if (!isStandalone) {
-        return;
-      }
-
       let deviceToken = '';
       try {
         deviceToken = localStorage.getItem('vetlink_device_token') || '';
