@@ -34,6 +34,34 @@ function normalize_ma_phone(string $raw): string {
     return $s !== '' ? '+212' . $s : '';
 }
 
+function search_phone_variants(string $raw): array {
+    $variants = [];
+    $trimmed = trim($raw);
+    if ($trimmed !== '') {
+        $variants[] = $trimmed;
+    }
+
+    $normalized = normalize_ma_phone($trimmed);
+    if ($normalized !== '') {
+        $variants[] = $normalized;
+        $variants[] = ltrim($normalized, '+');
+
+        if (strpos($normalized, '+212') === 0) {
+            $variants[] = '0' . substr($normalized, 4);
+        }
+    }
+
+    $digitsOnly = preg_replace('/\D+/', '', $trimmed);
+    if (is_string($digitsOnly) && $digitsOnly !== '') {
+        $variants[] = $digitsOnly;
+        if (strpos($digitsOnly, '212') === 0) {
+            $variants[] = '0' . substr($digitsOnly, 3);
+        }
+    }
+
+    return array_values(array_unique(array_filter($variants, static fn ($v) => is_string($v) && $v !== '')));
+}
+
 function client_latlng_candidates(): array {
     return [
         ['latitude', 'longitude'],
@@ -113,9 +141,16 @@ try {
         $where = " WHERE 1=1 ";
         $params = [];
         if ($q !== '') {
-            $where .= " AND (c.nom LIKE ? OR c.prenom LIKE ? OR c.email LIKE ? OR c.gsm LIKE ? OR c.adresse LIKE ?) ";
+            $where .= " AND (c.nom LIKE ? OR c.prenom LIKE ? OR c.email LIKE ? OR c.adresse LIKE ? ";
             $like = '%' . $q . '%';
-            $params = [$like, $like, $like, $like, $like];
+            $params = [$like, $like, $like, $like];
+
+            foreach (search_phone_variants($q) as $variant) {
+                $where .= " OR c.gsm LIKE ? ";
+                $params[] = '%' . $variant . '%';
+            }
+
+            $where .= ") ";
         }
 
         $countSql = "SELECT COUNT(*) FROM clients c $where";
