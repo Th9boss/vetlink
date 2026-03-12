@@ -1,5 +1,7 @@
 # ── Environnement sensible (NE JAMAIS committer) ───────────
 .env
+.env.local
+.env.*.local
 
 # ── Uploads utilisateurs ───────────────────────────────────
 uploads/

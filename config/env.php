@@ -2,21 +2,40 @@
 // config/env.php — chargement de la configuration depuis .env
 
 (function () {
-    $envFile = dirname(__DIR__) . '/.env';
-    if (!is_file($envFile)) {
-        die('Fichier .env introuvable. Copiez .env.example en .env et configurez-le.');
-    }
-    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line === '' || $line[0] === '#') continue;
-        if (!str_contains($line, '='))          continue;
-        [$key, $val] = explode('=', $line, 2);
-        $key = trim($key);
-        $val = trim($val, " \t\"'");
-        if ($key !== '' && !array_key_exists($key, $_ENV)) {
-            $_ENV[$key] = $val;
+    $root = dirname(__DIR__);
+    $envFiles = [
+        $root . '/.env',
+        $root . '/.env.local',
+    ];
+
+    $loaded = false;
+    foreach ($envFiles as $envFile) {
+        if (!is_file($envFile)) {
+            continue;
         }
+
+        $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        if ($lines === false) {
+            continue;
+        }
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '' || $line[0] === '#') continue;
+            if (!str_contains($line, '=')) continue;
+            [$key, $val] = explode('=', $line, 2);
+            $key = trim($key);
+            $val = trim($val, " \t\"'");
+            if ($key !== '') {
+                $_ENV[$key] = $val;
+            }
+        }
+
+        $loaded = true;
+    }
+
+    if (!$loaded) {
+        die('Fichier .env introuvable. Copiez .env.example en .env ou créez .env.local et configurez-le.');
     }
 })();
 
