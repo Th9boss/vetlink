@@ -41,6 +41,8 @@ if ($_appEnv === 'dev' || $_debug) {
 
 // ── Constantes applicatives ────────────────────────────────
 if (!defined('SESSION_NAME'))  define('SESSION_NAME',  $_ENV['SESSION_NAME']  ?? 'VETLINKSESSID');
+if (!defined('SESSION_LIFETIME')) define('SESSION_LIFETIME', max(0, (int)($_ENV['SESSION_LIFETIME'] ?? 315360000)));
+if (!defined('REMEMBER_TOKEN_LIFETIME')) define('REMEMBER_TOKEN_LIFETIME', max(0, (int)($_ENV['REMEMBER_TOKEN_LIFETIME'] ?? (defined('SESSION_LIFETIME') ? SESSION_LIFETIME : 315360000))));
 if (!defined('BASE_URL'))      define('BASE_URL',      $_ENV['BASE_URL']      ?? '/');
 if (!defined('SITE_NAME'))     define('SITE_NAME',     $_ENV['SITE_NAME']     ?? 'VETLINK');
 if (!defined('COOKIE_SECURE')) define('COOKIE_SECURE', filter_var($_ENV['COOKIE_SECURE'] ?? 'true', FILTER_VALIDATE_BOOLEAN));

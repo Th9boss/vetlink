@@ -15,7 +15,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="application-name" content="VETLINK">
+  <meta name="theme-color" content="#0b3d5c">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="VETLINK">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="VETLINK">
+  <meta property="og:title" content="VETLINK">
+  <meta property="og:description" content="Application de gestion veterinaire VETLINK.">
+  <meta property="og:url" content="<?= h(absolute_url('index.php?page=login')) ?>">
+  <meta property="og:image" content="<?= h(absolute_url('assets/pwa/1024X1024.png')) ?>">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="1024">
+  <meta property="og:image:height" content="1024">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="VETLINK">
+  <meta name="twitter:description" content="Application de gestion veterinaire VETLINK.">
+  <meta name="twitter:image" content="<?= h(absolute_url('assets/pwa/1024X1024.png')) ?>">
   <title><?= h(SITE_NAME) ?> - Connexion</title>
+  <link rel="manifest" href="<?= h(base_url('manifest.php')) ?>">
+  <link rel="icon" type="image/png" sizes="192x192" href="<?= h(base_url('assets/pwa/192x192.png')) ?>">
+  <link rel="apple-touch-icon" sizes="152x152" href="<?= h(base_url('assets/pwa/152X152.png')) ?>">
   <script>
     tailwind.config = {
       theme: {
@@ -28,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             accent: '#0071e3'
           },
           boxShadow: {
-            panel: '0 38px 100px rgba(0,0,0,0.16), 0 0 0 1px rgba(255,255,255,1), 0 0 0 6px rgba(255,255,255,0.88), 0 0 0 10px rgba(15,23,42,0.06), 0 0 52px rgba(0,113,227,0.16)',
+            panel: '0 42px 110px rgba(2, 16, 35, 0.22), 0 0 0 1px rgba(255,255,255,1), 0 0 0 6px rgba(255,255,255,0.9), 0 0 0 11px rgba(15,23,42,0.10), 0 0 65px rgba(0,113,227,0.18)',
             soft: '0 10px 30px rgba(0,0,0,0.06)'
           },
           fontFamily: {
@@ -39,8 +61,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     };
   </script>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="h-[100dvh] overflow-hidden bg-white font-sans text-ink antialiased">
+  <script>window.VETLINK_BASE_URL = <?= json_encode(base_url(), JSON_UNESCAPED_SLASHES) ?>;</script>
   <div class="relative flex h-[100dvh] flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(0,113,227,0.10),_transparent_28%),linear-gradient(180deg,#fbfbfd_0%,#f5f5f7_100%)]">
     <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-sky-100/80 to-transparent"></div>
 
@@ -50,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <img src="assets/img/logo-square.png" alt="VETLINK" class="h-11 w-11 rounded-[14px] object-cover shadow-soft">
           <div>
             <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-steel">Vetlink</div>
-            <div class="text-sm font-medium text-ink">Version 2.0</div>
+            <div class="text-sm font-medium text-ink">Version 2.1</div>
           </div>
         </a>
         <div class="hidden text-sm font-medium text-steel md:block">Gestion vétérinaire centralisée</div>
@@ -80,7 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </section>
 
         <section class="mx-auto w-full max-w-md">
-          <div class="rounded-[32px] border-2 border-white bg-white shadow-panel backdrop-blur-xl ring-1 ring-slate-300/95">
+          <div class="rounded-[32px] border-2 border-white bg-white shadow-panel backdrop-blur-xl ring-2 ring-slate-400/95">
             <div class="px-5 py-6 sm:px-8 sm:py-8">
               <div class="mb-6">
                 <h2 class="text-3xl font-semibold tracking-[-0.03em] text-ink">Connexion</h2>
@@ -142,7 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <footer class="relative z-10">
       <div class="mx-auto flex max-w-6xl items-center justify-center gap-2 overflow-hidden px-4 py-3 text-[10px] text-steel sm:justify-between sm:px-6 sm:text-xs lg:px-8">
-        <div class="truncate whitespace-nowrap">© <?= date('Y') ?> <?= h(SITE_NAME) ?>. Plateforme de gestion vétérinaire. Version 2.0.</div>
+        <div class="truncate whitespace-nowrap">© <?= date('Y') ?> <?= h(SITE_NAME) ?>. Plateforme de gestion vétérinaire. Version 2.1.</div>
         <div class="flex shrink-0 items-center gap-2 whitespace-nowrap">
           <a href="https://vetex.ma" target="_blank" rel="noopener" class="font-semibold text-ink transition hover:text-accent">vetex.ma</a>
           <img src="assets/img/linear_logo.png" alt="VetExperts" class="h-4 w-auto object-contain opacity-80 sm:h-5">
@@ -163,5 +187,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     }
   </script>
+  <script src="assets/js/pwa-register.js"></script>
 </body>
 </html>

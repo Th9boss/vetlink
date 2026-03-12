@@ -11,6 +11,45 @@ function redirect(string $url): void {
     exit;
 }
 
+function base_path(): string {
+    $base = trim((string)BASE_URL);
+    if ($base === '') {
+        return '/';
+    }
+
+    if (preg_match('#^https?://#i', $base)) {
+        $path = (string)parse_url($base, PHP_URL_PATH);
+        $base = $path !== '' ? $path : '/';
+    } elseif ($base[0] !== '/') {
+        $slashPos = strpos($base, '/');
+        $base = $slashPos === false ? '/' : '/' . ltrim(substr($base, $slashPos), '/');
+    }
+
+    $base = '/' . trim($base, '/');
+    return $base === '/' ? '/' : $base . '/';
+}
+
+function base_url(string $path = ''): string {
+    $base = base_path();
+    if ($path === '') {
+        return $base;
+    }
+    return $base . ltrim($path, '/');
+}
+
+function app_origin(): string {
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+        || (($_SERVER['SERVER_PORT'] ?? '') === '443')
+        || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    $scheme = $https ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    return $scheme . '://' . $host;
+}
+
+function absolute_url(string $path = ''): string {
+    return app_origin() . base_url($path);
+}
+
 // ===== CSRF =====
 function csrf_token(): string {
     if (empty($_SESSION['csrf_token'])) {
