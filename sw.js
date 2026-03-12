@@ -1,4 +1,4 @@
-const CACHE_NAME = 'vetlink-static-v2';
+const CACHE_NAME = 'vetlink-static-v3';
 const OFFLINE_URL = './offline.html';
 const STATIC_ASSETS = [
   './',
@@ -41,6 +41,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  const isApiRequest = url.pathname.includes('/api/');
+  const isPhpRequest = url.pathname.endsWith('.php') || url.pathname.endsWith('/index.php');
+  const isDynamicPage = isApiRequest || isPhpRequest || url.searchParams.has('page');
+
+  if (isDynamicPage) {
+    event.respondWith(
+      fetch(request, { cache: 'no-store' }).catch(async () => {
+        if (request.mode === 'navigate') {
+          return caches.match(OFFLINE_URL);
+        }
+        throw new Error('Dynamic request failed');
+      })
+    );
+    return;
+  }
+
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
@@ -62,7 +78,7 @@ self.addEventListener('fetch', (event) => {
       if (cached) {
         return cached;
       }
-      return fetch(request).then((response) => {
+      return fetch(request, { cache: 'no-store' }).then((response) => {
         if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
         }

@@ -326,8 +326,12 @@ $page = max(1, (int)($_GET['p'] ?? 1));
   }
 
   async function apiGet(params = {}){
-    const qs = new URLSearchParams(params).toString();
-    const r = await fetch('api/clients.php?' + qs, { credentials:'same-origin' });
+    const search = new URLSearchParams(params);
+    search.set('_ts', String(Date.now()));
+    const r = await fetch('api/clients.php?' + search.toString(), {
+      credentials:'same-origin',
+      cache:'no-store'
+    });
     return r.json();
   }
 
@@ -335,7 +339,12 @@ $page = max(1, (int)($_GET['p'] ?? 1));
     const fd = new FormData();
     Object.entries(payload).forEach(([k,v]) => fd.append(k, v ?? ''));
     fd.append('csrf_token', els.csrf.value);
-    const r = await fetch('api/clients.php', { method:'POST', credentials:'same-origin', body: fd });
+    const r = await fetch('api/clients.php', {
+      method:'POST',
+      credentials:'same-origin',
+      cache:'no-store',
+      body: fd
+    });
     return r.json();
   }
 
@@ -478,7 +487,7 @@ $page = max(1, (int)($_GET['p'] ?? 1));
 
     clientModal.hide();
     showAlert('Client enregistré.');
-    loadClients(true);
+    await loadClients(true);
   }
 
   async function onDelete(id){
@@ -489,7 +498,7 @@ $page = max(1, (int)($_GET['p'] ?? 1));
       return;
     }
     showAlert('Client supprimé.');
-    loadClients(true);
+    await loadClients(true);
   }
 
   function openNav(c){
