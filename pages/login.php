@@ -1,7 +1,6 @@
 <?php
 // pages/login.php — page standalone (hors layout global)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    csrf_check();
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
     if (auth_login($email, $password)) {
@@ -35,7 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <meta name="twitter:description" content="Application de gestion veterinaire VETLINK.">
   <meta name="twitter:image" content="<?= h(absolute_url('assets/pwa/1024X1024.png')) ?>">
   <title><?= h(SITE_NAME) ?> - Connexion</title>
-  <link rel="manifest" href="<?= h(base_url('manifest.php')) ?>">
+  <link rel="manifest" href="<?= h(asset_url('manifest.php')) ?>">
   <link rel="icon" type="image/png" sizes="192x192" href="<?= h(base_url('assets/pwa/192x192.png')) ?>">
   <link rel="apple-touch-icon" sizes="152x152" href="<?= h(base_url('assets/pwa/152X152.png')) ?>">
   <script>
@@ -64,7 +63,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </head>
 <body class="h-[100dvh] overflow-hidden bg-white font-sans text-ink antialiased">
-  <script>window.VETLINK_BASE_URL = <?= json_encode(base_url(), JSON_UNESCAPED_SLASHES) ?>;</script>
+  <script>
+    window.VETLINK_BASE_URL = <?= json_encode(base_url(), JSON_UNESCAPED_SLASHES) ?>;
+    window.VETLINK_SW_URL = <?= json_encode(asset_url('sw.js'), JSON_UNESCAPED_SLASHES) ?>;
+    window.VETLINK_DEVICE_TOKEN = <?= json_encode(consume_pending_device_token(), JSON_UNESCAPED_SLASHES) ?>;
+  </script>
   <div class="relative flex h-[100dvh] flex-col overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(0,113,227,0.10),_transparent_28%),linear-gradient(180deg,#fbfbfd_0%,#f5f5f7_100%)]">
     <div class="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-sky-100/80 to-transparent"></div>
 
@@ -118,8 +121,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               <?php endif; ?>
 
               <form method="post" novalidate class="space-y-4">
-                <?= csrf_input() ?>
-
                 <div>
                   <label for="email" class="mb-2 block text-sm font-medium text-ink">Adresse e-mail</label>
                   <input
@@ -187,6 +188,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
       });
     }
   </script>
-  <script src="assets/js/pwa-register.js"></script>
+  <script>
+    (function () {
+      const pendingToken = window.VETLINK_DEVICE_TOKEN;
+      if (pendingToken) {
+        try {
+          localStorage.setItem('vetlink_device_token', pendingToken);
+        } catch (_) {}
+      }
+
+      const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+        || window.navigator.standalone === true;
+      if (!isStandalone) {
+        return;
+      }
+
+      let deviceToken = '';
+      try {
+        deviceToken = localStorage.getItem('vetlink_device_token') || '';
+      } catch (_) {
+        deviceToken = '';
+      }
+      if (!deviceToken) {
+        return;
+      }
+
+      fetch('api/pwa_restore.php', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8' },
+        body: new URLSearchParams({ device_token: deviceToken }).toString()
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          if (!data || !data.ok) {
+            try { localStorage.removeItem('vetlink_device_token'); } catch (_) {}
+            return;
+          }
+          if (data.device_token) {
+            try { localStorage.setItem('vetlink_device_token', data.device_token); } catch (_) {}
+          }
+          window.location.replace(data.redirect || 'index.php?page=dashboard');
+        })
+        .catch(() => {});
+    })();
+  </script>
+  <script src="<?= h(asset_url('assets/js/pwa-register.js')) ?>"></script>
 </body>
 </html>

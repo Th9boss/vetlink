@@ -50,6 +50,14 @@ function absolute_url(string $path = ''): string {
     return app_origin() . base_url($path);
 }
 
+function asset_url(string $path): string {
+    $relative = ltrim($path, '/');
+    $file = dirname(__DIR__) . '/' . $relative;
+    $url = base_url($relative);
+    $version = is_file($file) ? (string)filemtime($file) : (string)time();
+    return $url . (str_contains($url, '?') ? '&' : '?') . 'v=' . rawurlencode($version);
+}
+
 // ===== CSRF =====
 function csrf_token(): string {
     if (empty($_SESSION['csrf_token'])) {
@@ -62,11 +70,18 @@ function csrf_input(): string {
     return '<input type="hidden" name="csrf_token" value="'.h(csrf_token()).'">';
 }
 
+function csrf_is_valid(): bool {
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'POST') {
+        return true;
+    }
+
+    return isset($_POST['csrf_token'], $_SESSION['csrf_token'])
+        && hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);
+}
+
 function csrf_check(): void {
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-        $ok = isset($_POST['csrf_token'], $_SESSION['csrf_token']) &&
-              hash_equals($_SESSION['csrf_token'], $_POST['csrf_token']);
-        if (!$ok) {
+        if (!csrf_is_valid()) {
             http_response_code(403);
             die('CSRF token invalide.');
         }

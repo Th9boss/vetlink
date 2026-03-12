@@ -46,7 +46,7 @@ if ($me && ($me['role'] ?? '') === 'ADMIN') {
   <meta name="twitter:title" content="VETLINK">
   <meta name="twitter:description" content="Application de gestion veterinaire VETLINK.">
   <meta name="twitter:image" content="<?= h(absolute_url('assets/pwa/1024X1024.png')) ?>">
-  <link rel="manifest" href="<?= h(base_url('manifest.php')) ?>">
+  <link rel="manifest" href="<?= h(asset_url('manifest.php')) ?>">
   <link rel="icon" type="image/png" sizes="192x192" href="<?= h(base_url('assets/pwa/192x192.png')) ?>">
   <link rel="apple-touch-icon" sizes="152x152" href="<?= h(base_url('assets/pwa/152X152.png')) ?>">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
@@ -54,7 +54,7 @@ if ($me && ($me['role'] ?? '') === 'ADMIN') {
         integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
         crossorigin="anonymous">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
-  <link href="assets/css/app.css" rel="stylesheet">
+  <link href="<?= h(asset_url('assets/css/app.css')) ?>" rel="stylesheet">
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     .navbar-pro {
@@ -148,7 +148,11 @@ if ($me && ($me['role'] ?? '') === 'ADMIN') {
   </style>
 </head>
 <body class="bg-light">
-<script>window.VETLINK_BASE_URL = <?= json_encode(base_url(), JSON_UNESCAPED_SLASHES) ?>;</script>
+<script>
+  window.VETLINK_BASE_URL = <?= json_encode(base_url(), JSON_UNESCAPED_SLASHES) ?>;
+  window.VETLINK_SW_URL = <?= json_encode(asset_url('sw.js'), JSON_UNESCAPED_SLASHES) ?>;
+  window.VETLINK_DEVICE_TOKEN = <?= json_encode(consume_pending_device_token(), JSON_UNESCAPED_SLASHES) ?>;
+</script>
 <script>
   (function () {
     var standalone = window.matchMedia && window.matchMedia('(display-mode: standalone)').matches;
