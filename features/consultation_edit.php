@@ -404,6 +404,28 @@ $ANALYSES_OPTIONS = ['Biochimie','NFS','Hématologie','Ionogramme','CRP','Bilan 
 .vl-filelist{max-height:85vh;overflow:auto}
 .vl-price-strong input{font-weight:700}
 .badge-soft{background:#eef2ff;color:#3949ab;border-radius:999px;padding:.2rem .6rem;font-size:.75rem}
+
+/* ── Assistant Vocal ── */
+.vl-voice-box{background:linear-gradient(135deg,#f0f7ff 0%,#e8f4fd 100%);border:1px solid #b3d9f5;border-radius:.75rem;transition:box-shadow .2s}
+.vl-voice-box.is-recording{border-color:#dc3545;background:linear-gradient(135deg,#fff5f5 0%,#ffe9e9 100%);box-shadow:0 0 0 3px rgba(220,53,69,.12)}
+.vl-mic-btn{width:52px;height:52px;padding:0;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:1.25rem;transition:transform .15s}
+.vl-mic-btn:active{transform:scale(.92)}
+@keyframes vl-bar-bounce{0%,100%{transform:scaleY(.35)}50%{transform:scaleY(1)}}
+.vl-pulse-bar{display:inline-block;width:4px;height:22px;border-radius:2px;background:#dc3545;transform-origin:bottom;animation:vl-bar-bounce .7s ease-in-out infinite}
+.vl-help-btn{width:22px;height:22px;padding:0;border-radius:50%;font-size:.7rem;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;opacity:.65;transition:opacity .15s}
+.vl-help-btn:hover{opacity:1}
+/* Mobile-first : formulaire */
+@media (max-width:575px){
+  .vl-pulse-bars{display:none!important}
+  .vl-voice-box{flex-wrap:wrap;gap:.75rem!important}
+  .vl-voice-timer{font-size:.95rem!important}
+  .vl-exam-label{flex-direction:column!important;align-items:flex-start!important}
+  .vl-exam-label .vl-preset-wrap{width:100%}
+  .vl-exam-label .vl-preset-wrap select{max-width:100%!important;width:100%}
+  .poids-green input{max-width:100%!important}
+  .vl-submit-row{flex-direction:column!important}
+  .vl-submit-row .btn{width:100%}
+}
 </style>
 
 <div class="container my-3">
@@ -586,9 +608,9 @@ document.addEventListener("DOMContentLoaded", function(){
           </div>
 
           <div class="col-md-9">
-            <label class="form-label d-flex justify-content-between">
+            <label class="form-label d-flex justify-content-between align-items-center gap-2 vl-exam-label">
               <span>Examen clinique</span>
-              <span class="d-inline-flex gap-2">
+              <span class="vl-preset-wrap d-inline-flex gap-2">
                 <select class="form-select form-select-sm" id="examPreset" style="max-width:260px">
                   <option value="">🧾 Insérer un preset…</option>
                   <?php foreach ($EXAM_PRESETS as $k=>$v): ?>
@@ -649,11 +671,372 @@ document.addEventListener("DOMContentLoaded", function(){
   </div>
 </div>
         </div>
-        <div class="mt-3 d-flex gap-2">
-          <button class="btn btn-primary" type="submit">Enregistrer</button>
+
+        <!-- ── Assistant Vocal IA ───────────────────────────────────────── -->
+        <div class="mt-3" x-data="voiceConsult()" x-init="init()">
+          <div class="vl-voice-box p-3 d-flex align-items-center gap-3"
+               :class="{'is-recording': state==='recording'}">
+
+            <!-- Bouton micro / stop / spinner -->
+            <button type="button" class="vl-mic-btn btn shadow-sm"
+                    :class="{
+                      'btn-danger':  state==='recording',
+                      'btn-primary': state!=='recording' && state!=='processing',
+                      'btn-secondary': state==='processing'
+                    }"
+                    @click="toggle()"
+                    :disabled="state==='processing'">
+              <template x-if="state==='recording'">
+                <i class="bi bi-stop-fill"></i>
+              </template>
+              <template x-if="state==='processing'">
+                <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              </template>
+              <template x-if="state!=='recording' && state!=='processing'">
+                <i class="bi bi-mic-fill"></i>
+              </template>
+            </button>
+
+            <!-- Zone texte centrale -->
+            <div class="flex-grow-1" style="min-width:0">
+
+              <!-- Idle -->
+              <template x-if="state==='idle'">
+                <div>
+                  <div class="d-flex align-items-center gap-2">
+                    <span class="fw-semibold" style="color:#0e6ba8;font-size:.9rem">Assistant vocal</span>
+                    <button type="button" class="vl-help-btn btn btn-outline-secondary border-0"
+                            data-bs-toggle="modal" data-bs-target="#modalVoiceHelp"
+                            title="Comment utiliser l'assistant vocal">
+                      <i class="bi bi-question-circle-fill" style="color:#0e6ba8"></i>
+                    </button>
+                  </div>
+                  <div class="text-muted" style="font-size:.8rem">Dictez la consultation — l'IA remplira les champs automatiquement.</div>
+                </div>
+              </template>
+
+              <!-- Recording -->
+              <template x-if="state==='recording'">
+                <div class="d-flex align-items-center gap-3">
+                  <div>
+                    <div class="fw-semibold text-danger" style="font-size:.9rem">Enregistrement en cours…</div>
+                    <div class="text-muted" style="font-size:.8rem">Parlez clairement. Arrêt auto à 120 s.</div>
+                  </div>
+                  <div class="ms-auto fw-bold text-danger vl-voice-timer" style="font-size:1.1rem;font-variant-numeric:tabular-nums" x-text="timerDisplay"></div>
+                </div>
+              </template>
+
+              <!-- Processing -->
+              <template x-if="state==='processing'">
+                <div>
+                  <div class="fw-semibold" style="color:#0e6ba8;font-size:.9rem">Analyse en cours…</div>
+                  <div class="text-muted" style="font-size:.8rem">Transcription + extraction des champs</div>
+                </div>
+              </template>
+
+              <!-- Done -->
+              <template x-if="state==='done'">
+                <div>
+                  <div class="d-flex flex-wrap align-items-center gap-1 mb-1">
+                    <span class="fw-semibold text-success" style="font-size:.85rem">Champs remplis :</span>
+                    <template x-for="f in filledFields" :key="f.key">
+                      <span class="badge badge-soft" x-text="f.label"></span>
+                    </template>
+                    <template x-if="filledFields.length===0">
+                      <span class="text-muted" style="font-size:.8rem">Aucun champ reconnu.</span>
+                    </template>
+                  </div>
+                  <div class="text-muted" style="font-size:.75rem;line-height:1.4"
+                       x-text="transcript.length > 160 ? transcript.substring(0,160)+'…' : transcript"></div>
+                </div>
+              </template>
+
+              <!-- Error -->
+              <template x-if="state==='error'">
+                <div>
+                  <div class="fw-semibold text-danger" style="font-size:.9rem">Erreur</div>
+                  <div class="text-muted" style="font-size:.8rem" x-text="errorMsg"></div>
+                </div>
+              </template>
+
+            </div>
+
+            <!-- Barres animées pendant l'enregistrement -->
+            <template x-if="state==='recording'">
+              <div class="vl-pulse-bars d-flex gap-1 align-items-center flex-shrink-0" style="height:28px">
+                <span class="vl-pulse-bar"></span>
+                <span class="vl-pulse-bar" style="animation-delay:.15s"></span>
+                <span class="vl-pulse-bar" style="animation-delay:.30s"></span>
+                <span class="vl-pulse-bar" style="animation-delay:.45s"></span>
+                <span class="vl-pulse-bar" style="animation-delay:.60s"></span>
+              </div>
+            </template>
+
+          </div>
+        </div>
+
+        <div class="mt-3 d-flex gap-2 vl-submit-row">
+          <button id="btnSaveConsult" class="btn btn-primary" type="submit">Enregistrer</button>
           <a class="btn btn-outline-secondary" href="index.php?page=patient_view&id=<?= (int)$patient_id ?>">Retour fiche patient</a>
         </div>
       </form>
+<script>
+(function(){
+  const motif = document.querySelector('[name="motif"]');
+  const btn   = document.getElementById('btnSaveConsult');
+  if (!motif || !btn) return;
+  const sync = () => {
+    const empty = motif.value.trim() === '';
+    btn.disabled = empty;
+    btn.classList.toggle('btn-secondary', empty);
+    btn.classList.toggle('btn-primary',   !empty);
+  };
+  motif.addEventListener('input', sync);
+  sync(); // état initial
+})();
+</script>
+
+<script>
+function voiceConsult() {
+  return {
+    state:        'idle', // idle | recording | processing | done | error
+    mediaRecorder: null,
+    chunks:        [],
+    timerInterval: null,
+    seconds:       0,
+    transcript:    '',
+    filledFields:  [],
+    errorMsg:      '',
+    MAX_SECONDS:   120,
+
+    get timerDisplay() {
+      const s = this.seconds;
+      return String(Math.floor(s / 60)).padStart(2, '0') + ':' + String(s % 60).padStart(2, '0');
+    },
+
+    init() {},
+
+    async toggle() {
+      if (this.state === 'recording') {
+        this.stopRecording();
+      } else if (this.state !== 'processing') {
+        this.state        = 'idle';
+        this.filledFields = [];
+        this.transcript   = '';
+        this.errorMsg     = '';
+        await this.startRecording();
+      }
+    },
+
+    async startRecording() {
+      this.chunks = [];
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (_) {
+        this.state    = 'error';
+        this.errorMsg = 'Accès au microphone refusé. Vérifiez les permissions du navigateur.';
+        return;
+      }
+
+      const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']
+        .find(t => MediaRecorder.isTypeSupported(t)) || '';
+
+      this.mediaRecorder = new MediaRecorder(stream, mimeType ? { mimeType } : {});
+
+      this.mediaRecorder.ondataavailable = e => {
+        if (e.data && e.data.size > 0) this.chunks.push(e.data);
+      };
+
+      this.mediaRecorder.onstop = () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(this.chunks, { type: mimeType || 'audio/webm' });
+        this.sendAudio(blob);
+      };
+
+      this.mediaRecorder.start(250);
+      this.state   = 'recording';
+      this.seconds = 0;
+
+      this.timerInterval = setInterval(() => {
+        this.seconds++;
+        if (this.seconds >= this.MAX_SECONDS) this.stopRecording();
+      }, 1000);
+    },
+
+    stopRecording() {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+      if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+        this.mediaRecorder.stop();
+      }
+      this.state = 'processing';
+    },
+
+    async sendAudio(blob) {
+      const csrfInput = document.querySelector('input[name="csrf_token"]');
+      const fd = new FormData();
+      fd.append('audio', blob, 'enregistrement.webm');
+      if (csrfInput) fd.append('csrf_token', csrfInput.value);
+
+      try {
+        const resp = await fetch('<?= base_url('api/voice_consult.php') ?>', {
+          method: 'POST',
+          body:   fd,
+        });
+        if (!resp.ok && resp.status !== 200) {
+          const data = await resp.json().catch(() => ({}));
+          this.state    = 'error';
+          this.errorMsg = data.msg || 'Erreur serveur (' + resp.status + ').';
+          return;
+        }
+        const data = await resp.json();
+        if (!data.ok) {
+          this.state    = 'error';
+          this.errorMsg = data.msg || 'Erreur inconnue.';
+          return;
+        }
+        this.transcript = data.transcript || '';
+        this.fillForm(data.fields || {});
+      } catch (_) {
+        this.state    = 'error';
+        this.errorMsg = 'Impossible de contacter le serveur. Vérifiez votre connexion.';
+      }
+    },
+
+    fillForm(fields) {
+      const append = fields.mode === 'append';
+
+      // Helper : remplace ou ajoute selon le mode
+      const set = (el, val) => {
+        if (!el) return;
+        if (append && el.value.trim() !== '') {
+          el.value = el.value.trimEnd() + '\n' + val;
+        } else {
+          el.value = val;
+        }
+      };
+
+      const MAP = [
+        { key: 'motif',                  label: 'Motif',                 get: () => document.querySelector('[name="motif"]'), onSet: el => el.dispatchEvent(new Event('input')) },
+        { key: 'poids',                  label: 'Poids',                 get: () => document.querySelector('[name="poids"]'),           noAppend: true },
+        { key: 'commentaire_facturation',label: 'Commentaire fact.',     get: () => document.querySelector('[name="commentaire_facturation"]') },
+        { key: 'montant_ligne',          label: 'Prix',                  get: () => document.querySelector('[name="montant_ligne"]'),   noAppend: true },
+        { key: 'examen',                 label: 'Examen clinique',       get: () => document.getElementById('examArea') },
+        { key: 'anamnese',               label: 'Anamnèse',              get: () => document.getElementById('anamnese'),                wrap: 'anamneseWrap' },
+        { key: 'diagnostic',             label: 'Diagnostic',            get: () => document.getElementById('diagnostic'),              wrap: 'diagnosticWrap' },
+        { key: 'traitement',             label: 'Traitement',            get: () => document.getElementById('traitement'),              wrap: 'traitementWrap' },
+      ];
+
+      this.filledFields = [];
+      MAP.forEach(({ key, label, get, wrap, noAppend, onSet }) => {
+        const val = fields[key];
+        if (!val || typeof val !== 'string' || val.trim() === '') return;
+        const el = get();
+        if (!el) return;
+        // Poids et prix : toujours remplacer (pas de sens d'ajouter)
+        if (noAppend) {
+          el.value = val;
+        } else {
+          set(el, val);
+        }
+        if (onSet) onSet(el);
+        if (wrap) this._expand(wrap);
+        this.filledFields.push({ key, label });
+      });
+
+      this.state = 'done';
+    },
+
+    _expand(wrapId) {
+      const wrap = document.getElementById(wrapId);
+      if (wrap && !wrap.classList.contains('show')) {
+        if (typeof bootstrap !== 'undefined') {
+          bootstrap.Collapse.getOrCreateInstance(wrap).show();
+        } else {
+          wrap.classList.add('show');
+        }
+      }
+    },
+  };
+}
+</script>
+
+<!-- ── Modal : aide assistant vocal ─────────────────────────────── -->
+<div class="modal fade" id="modalVoiceHelp" tabindex="-1" aria-labelledby="modalVoiceHelpLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title fw-bold" id="modalVoiceHelpLabel" style="color:#0e6ba8">
+          <i class="bi bi-mic-fill me-2"></i>Assistant vocal — Guide d'utilisation
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body pt-2">
+
+        <!-- Démarrage -->
+        <div class="mb-3 p-3 rounded-3" style="background:#f0f7ff">
+          <div class="fw-semibold mb-1" style="color:#0e6ba8"><i class="bi bi-play-circle me-1"></i>Démarrer un enregistrement</div>
+          <p class="mb-0 small text-muted">Appuyez sur le bouton <span class="badge bg-primary"><i class="bi bi-mic-fill"></i></span> pour commencer à dicter. L'enregistrement s'arrête automatiquement après <strong>120 secondes</strong> ou dès que vous appuyez sur <span class="badge bg-danger"><i class="bi bi-stop-fill"></i></span>.</p>
+        </div>
+
+        <!-- Champs reconnus -->
+        <div class="mb-3">
+          <div class="fw-semibold mb-2"><i class="bi bi-list-check me-1"></i>Champs reconnus automatiquement</div>
+          <div class="row g-2">
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Motif</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Poids (kg)</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Examen clinique</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Anamnèse</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Diagnostic</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Traitement</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Commentaire fact.</span></div>
+            <div class="col-6"><span class="badge rounded-pill text-bg-light border w-100 py-2">Prix (DH)</span></div>
+          </div>
+        </div>
+
+        <!-- Exemples -->
+        <div class="mb-3">
+          <div class="fw-semibold mb-2"><i class="bi bi-chat-quote me-1"></i>Exemples de dictée</div>
+          <div class="vstack gap-2">
+            <div class="p-2 rounded border-start border-3 border-primary bg-light small">
+              <em>"Le motif de consultation est une boiterie du membre antérieur droit. Le poids est 28 virgule 5. À l'examen clinique, douleur à la palpation de l'articulation du coude. Diagnostic : arthrite. Traitement : anti-inflammatoire 3 jours."</em>
+            </div>
+            <div class="p-2 rounded border-start border-3 border-success bg-light small">
+              <em>"Le prix de la consultation est 200 dirhams."</em><br>
+              <span class="text-muted">→ Remplit uniquement le champ Prix.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Mode ajoute -->
+        <div class="mb-3 p-3 rounded-3" style="background:#f0fff4;border:1px solid #c3e6cb">
+          <div class="fw-semibold mb-1 text-success"><i class="bi bi-plus-circle me-1"></i>Ajouter sans écraser</div>
+          <p class="mb-0 small text-muted">Dites <strong>"ajoute"</strong>, <strong>"rajoute"</strong> ou <strong>"en plus"</strong> pour que le texte soit <em>ajouté</em> à la suite du contenu existant plutôt que de le remplacer.</p>
+          <div class="mt-2 p-2 rounded border-start border-3 border-success bg-white small">
+            <em>"Ajoute au traitement : contrôle dans 7 jours."</em>
+          </div>
+        </div>
+
+        <!-- Conseils -->
+        <div class="p-3 rounded-3" style="background:#fff8e1;border:1px solid #ffe082">
+          <div class="fw-semibold mb-1" style="color:#b45309"><i class="bi bi-lightbulb me-1"></i>Conseils pour de meilleurs résultats</div>
+          <ul class="mb-0 small text-muted ps-3">
+            <li>Parlez clairement et à vitesse normale.</li>
+            <li>Nommez explicitement les champs : <em>"le diagnostic est…"</em>, <em>"le traitement est…"</em></li>
+            <li>Seuls les champs mentionnés sont remplis — les autres restent intacts.</li>
+            <li>Poids et prix sont toujours remplacés, même avec "ajoute".</li>
+          </ul>
+        </div>
+
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-primary w-100" data-bs-dismiss="modal">Compris !</button>
+      </div>
+    </div>
+  </div>
+</div>
+
     </div>
   </div>
 
