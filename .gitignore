@@ -36,3 +36,6 @@ cache/
 *.swp
 *.swo
 Thumbs.db
+
+# ── Fichiers agent locaux ──────────────────────────────────
+CLAUDE.md
