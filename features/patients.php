@@ -348,48 +348,58 @@ function human_age(?string $birth): string {
     } catch (Exception $e) { return '—'; }
 }
 ?>
-<div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-  <h1 class="h4 mb-0">Patients</h1>
-
-  <div class="ms-auto"></div>
-
-  <!-- GPS -->
-  <?php $useGpsFlag = $useGps; ?>
-  <div class="form-check form-switch">
-    <input class="form-check-input" type="checkbox" role="switch" id="gpsSwitch" <?= $useGpsFlag?'checked':'' ?>>
-    <label class="form-check-label" for="gpsSwitch">GPS</label>
+<div class="mb-3">
+  <!-- Ligne 1 : titre + bouton nouveau patient -->
+  <div class="d-flex align-items-center gap-2 mb-2">
+    <h1 class="h4 mb-0">Patients</h1>
+    <button id="btnNewPatient" type="button"
+            class="btn btn-success ms-auto d-flex align-items-center gap-1 fw-semibold"
+            onclick="if(typeof openWizardPatient==='function')openWizardPatient()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+        <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/>
+      </svg>
+      <span class="d-none d-sm-inline">Nouveau patient</span>
+      <span class="d-inline d-sm-none">Nouveau</span>
+    </button>
   </div>
-  <select id="radiusSelect" class="form-select form-select-sm" style="width:auto" <?= $useGpsFlag?'':'disabled' ?>>
-    <?php foreach ([1,5,10,15] as $r): ?>
-      <option value="<?= $r ?>" <?= $radius===$r?'selected':'' ?>><?= $r ?> km</option>
-    <?php endforeach; ?>
-  </select>
 
-  <!-- Filtre espèce + recherche -->
-  <form method="get" class="d-flex align-items-center gap-2">
+  <!-- Ligne 2 : recherche (pleine largeur sur mobile) -->
+  <?php $useGpsFlag = $useGps; ?>
+  <form method="get">
     <input type="hidden" name="page" value="patients">
-    <select name="esp" class="form-select form-select-sm" onchange="this.form.submit()">
-      <option value="">Toutes espèces</option>
-      <?php foreach ($species as $sp): ?>
-        <option value="<?= h($sp) ?>" <?= $esp===$sp?'selected':'' ?>><?= h($sp) ?></option>
-      <?php endforeach; ?>
-    </select>
-
-    <div class="input-group input-group-sm">
-      <input class="form-control" name="q" placeholder="Rechercher (nom, puce, client, motif, diag, notes)" value="<?= h($q) ?>">
-      <button class="btn btn-outline-primary">OK</button>
-      <?php if ($q!=='' || $esp!=='' || $useGpsFlag): ?>
-        <a class="btn btn-outline-secondary" href="index.php?page=patients">Réinit.</a>
+    <div class="input-group input-group-lg shadow-sm">
+      <span class="input-group-text bg-white border-end-0">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="#6c757d" viewBox="0 0 16 16">
+          <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398l3.85 3.85a1 1 0 0 0 1.415-1.415l-3.868-3.833zm-5.242 1.156a5.5 5.5 0 1 1 0-11 5.5 5.5 0 0 1 0 11z"/>
+        </svg>
+      </span>
+      <input class="form-control border-start-0 ps-0 fs-6" name="q"
+             placeholder="Rechercher un patient, puce, client…"
+             value="<?= h($q) ?>" autofocus>
+      <?php if ($q !== '' || $esp !== '' || $useGpsFlag): ?>
+        <a class="btn btn-outline-secondary" href="index.php?page=patients" title="Réinitialiser">✕</a>
       <?php endif; ?>
     </div>
+
+    <!-- Filtres secondaires : espèce + GPS (compacts, sous la barre) -->
+    <div class="d-flex flex-wrap align-items-center gap-2 mt-2">
+      <select name="esp" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+        <option value="">Toutes espèces</option>
+        <?php foreach ($species as $sp): ?>
+          <option value="<?= h($sp) ?>" <?= $esp===$sp?'selected':'' ?>><?= h($sp) ?></option>
+        <?php endforeach; ?>
+      </select>
+      <div class="form-check form-switch mb-0">
+        <input class="form-check-input" type="checkbox" role="switch" id="gpsSwitch" <?= $useGpsFlag?'checked':'' ?>>
+        <label class="form-check-label" for="gpsSwitch">GPS</label>
+      </div>
+      <select id="radiusSelect" class="form-select form-select-sm" style="width:auto" <?= $useGpsFlag?'':'disabled' ?>>
+        <?php foreach ([1,5,10,15] as $r): ?>
+          <option value="<?= $r ?>" <?= $radius===$r?'selected':'' ?>><?= $r ?> km</option>
+        <?php endforeach; ?>
+      </select>
+    </div>
   </form>
-
-  <!-- Nouveau patient -->
- <a id="btnNewPatient" class="btn btn-success btn-sm" data-bs-toggle="collapse" href="#patientForm" role="button"
-   aria-expanded="<?= isset($_GET['showform']) ? 'true':'false' ?>" aria-controls="patientForm">
-  Nouveau patient
-</a>
-
 </div>
 
 <?php if (isset($_GET['ok'])): ?>
@@ -443,24 +453,24 @@ function human_age(?string $birth): string {
                   <div class="d-flex align-items-center justify-content-between">
                     <h2 class="h6 mb-0"><?= h($r['patient_nom']) ?></h2>
                     <!-- Edit (stylo) -->
-                    <a class="btn btn-sm btn-outline-secondary" title="Éditer"
-                       href="index.php?page=patients&showform=1#patientForm"
-                       data-edit-payload='<?= h(json_encode([
-                         'id'=>$pid,
-                         'client_id'=>$r['client_id'],
-                         'nom'=>$r['patient_nom'],
-                         'espece'=>$r['patient_espece'],
-                         'race'=>$r['patient_race'],
-                         'sexe'=>$r['patient_sexe'],
-                         'date_naissance'=>$r['patient_date_naissance'],
-                         'identification'=>$r['patient_identification'],
-                         'sterilise'=>(int)$r['patient_sterilise'],
-                         'allergies'=>$r['patient_allergies'],
-                         'notes'=>$r['patient_notes'],
-                         'photo'=>$r['patient_photo'],
-                       ], JSON_UNESCAPED_UNICODE)) ?>'>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" title="Éditer"
+                       onclick='openWizardPatientEdit(<?= json_encode([
+                         "id"             => $pid,
+                         "client_id"      => $r["client_id"],
+                         "client_label"   => trim(($r["client_nom"]??'').' '.($r["client_prenom"]??'')),
+                         "nom"            => $r["patient_nom"],
+                         "espece"         => $r["patient_espece"],
+                         "race"           => $r["patient_race"],
+                         "sexe"           => $r["patient_sexe"],
+                         "date_naissance" => $r["patient_date_naissance"],
+                         "identification" => $r["patient_identification"],
+                         "sterilise"      => (int)$r["patient_sterilise"],
+                         "allergies"      => $r["patient_allergies"],
+                         "notes"          => $r["patient_notes"],
+                         "photo"          => $r["patient_photo"],
+                       ], JSON_UNESCAPED_UNICODE|JSON_HEX_QUOT|JSON_HEX_APOS) ?>)'>
                       ✏️
-                    </a>
+                    </button>
                   </div>
                   <div class="text-muted small mt-1">
                     <?= h(trim(($r['patient_espece']?:'').' / '.($r['patient_race']?:''),' /')) ?> &middot; <?= h($r['patient_sexe']) ?>
@@ -896,10 +906,7 @@ function human_age(?string $birth): string {
     const file = document.getElementById('npatient_photo_file'); if (file) file.value = '';
   }
 
-  document.getElementById('btnNewPatient')?.addEventListener('click', () => {
-    // Ne pas preventDefault -> on laisse le collapse s’ouvrir,
-    // mais on s’assure que le formulaire est vide en mode "create".
-    resetNewPatientForm();
-  });
+  // btnNewPatient now opens wizard; reset is handled by the wizard itself
 })();
 </script>
+<?php include __DIR__ . '/../includes/wizard_patient.php'; ?>

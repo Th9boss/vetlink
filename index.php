@@ -47,6 +47,11 @@ switch ($page) {
         require __DIR__ . '/features/patients.php';
         break;
 
+    case 'client_view':
+        require_login();
+        require __DIR__ . '/features/client_view.php';
+        break;
+
     case 'patient_view':
         require_login();
         require __DIR__ . '/features/patient_view.php';

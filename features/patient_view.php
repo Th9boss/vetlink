@@ -304,31 +304,99 @@ $canDeletePatient = (count($consultations) === 0 && count($interventions) === 0)
 <?php endif; ?>
 
 <!-- En-tête patient -->
-<div class="card shadow-sm mb-3">
+<style>
+.pv-patient-header .pv-actions{display:flex;flex-wrap:wrap;gap:.6rem}
+.pv-consult-cta{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.55rem;
+  border:0;
+  border-radius:16px;
+  padding:.9rem 1.15rem;
+  background:linear-gradient(180deg,#1274ff 0%,#0a5fd6 100%);
+  color:#fff !important;
+  font-weight:700;
+  box-shadow:0 14px 30px rgba(10,95,214,.24);
+}
+.pv-consult-cta:hover{color:#fff !important}
+.pv-consult-cta .bi{font-size:1rem;line-height:1}
+.pv-ai-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.55rem;
+  padding:.78rem 1rem;
+  border-radius:16px;
+  border:1px solid rgba(194,65,12,.16);
+  background:linear-gradient(180deg,#ffb347 0%,#f97316 100%);
+  color:#fff !important;
+  font-weight:700;
+  box-shadow:0 14px 28px rgba(249,115,22,.22);
+}
+.pv-ai-btn-mobile{
+  padding:.45rem .8rem;
+  border-radius:999px;
+  font-size:.88rem;
+  box-shadow:none;
+}
+.pv-ai-inline{
+  margin-top:.85rem;
+}
+@media (max-width:576px){
+  .pv-patient-header .card-body{display:block !important}
+  .pv-patient-header .pv-meta{margin-bottom:1rem}
+  .pv-patient-header .pv-actions{display:grid;grid-template-columns:1fr;gap:.7rem}
+  .pv-patient-header .pv-actions .btn{width:100%;justify-content:center}
+  .pv-consult-cta{
+    padding:1rem 1.1rem;
+    font-size:1rem;
+    border-radius:18px;
+    box-shadow:0 18px 34px rgba(10,95,214,.28);
+  }
+  .pv-ai-btn{
+    padding:1rem 1.1rem;
+    border-radius:18px;
+  }
+  .pv-ai-btn-mobile{
+    width:auto !important;
+    padding:.5rem .85rem;
+    border-radius:999px;
+  }
+}
+</style>
+
+<div class="card shadow-sm mb-3 pv-patient-header">
   <!-- Barre haute avec flèche retour & suppression conditionnelle -->
   <div class="card-header py-2 d-flex justify-content-between align-items-center">
     <a class="btn btn-sm btn-outline-secondary" href="index.php?page=patients" title="Retour">
       &larr;
     </a>
-    <?php if ($canDeletePatient): ?>
-      <form method="post" class="m-0" onsubmit="return confirm('Supprimer définitivement ce patient (aucun historique) ?');">
-        <?= csrf_input() ?>
-        <input type="hidden" name="act" value="delete_patient">
-        <button class="btn btn-sm btn-outline-danger" title="Supprimer le patient">&times;</button>
-      </form>
-    <?php else: ?>
-      <span class="small text-muted">Historique présent — suppression désactivée</span>
-    <?php endif; ?>
+    <div class="d-flex align-items-center gap-2">
+      <button type="button" class="btn pv-ai-btn pv-ai-btn-mobile d-sm-none" data-bs-toggle="modal" data-bs-target="#patientAiModal">
+        <i class="bi bi-stars"></i>
+        <span>Mon Assistant IA</span>
+      </button>
+      <?php if ($canDeletePatient): ?>
+        <form method="post" class="m-0" onsubmit="return confirm('Supprimer définitivement ce patient (aucun historique) ?');">
+          <?= csrf_input() ?>
+          <input type="hidden" name="act" value="delete_patient">
+          <button class="btn btn-sm btn-outline-danger" title="Supprimer le patient">&times;</button>
+        </form>
+      <?php else: ?>
+        <span class="small text-muted d-none d-sm-inline">Historique présent — suppression désactivée</span>
+      <?php endif; ?>
+    </div>
   </div>
 
   <div class="card-body d-flex align-items-center">
     <div class="me-3">
-      <?php $img = $patient['photo'] ?: 'assets/img/avatar_placeholder.png'; ?>
+      <?php $img = $patient['photo'] ?: 'assets/img/avatar_placeholder.webp'; ?>
       <a href="#" data-bs-toggle="modal" data-bs-target="#photoModal">
         <img src="<?= h($img) ?>" class="rounded-circle border" style="width:72px;height:72px;object-fit:cover" alt="">
       </a>
     </div>
-    <div class="flex-grow-1">
+    <div class="flex-grow-1 pv-meta">
       <h1 class="h5 mb-1"><?= h($patient['nom']) ?></h1>
       <div class="text-muted small">
         <?= h(trim(($patient['espece']?:'').' / '.($patient['race']?:''),' /')) ?> &middot;
@@ -340,10 +408,17 @@ $canDeletePatient = (count($consultations) === 0 && count($interventions) === 0)
         <?php if ($patient['c_gsm']): ?> · GSM: <a href="tel:<?= h($patient['c_gsm']) ?>"><?= h($patient['c_gsm']) ?></a><?php endif; ?>
         <?php if ($patient['c_email']): ?> · Email: <a href="mailto:<?= h($patient['c_email']) ?>"><?= h($patient['c_email']) ?></a><?php endif; ?>
       </div>
+      <div class="pv-ai-inline d-none d-sm-block">
+        <button type="button" class="btn pv-ai-btn" data-bs-toggle="modal" data-bs-target="#patientAiModal">
+          <i class="bi bi-stars"></i>
+          <span>Mon Assistant IA</span>
+        </button>
+      </div>
     </div>
-    <div class="d-flex flex-wrap gap-2">
-      <a class="btn btn-primary btn-sm" href="index.php?page=consultation_edit&patient_id=<?= h($patient_id) ?>">
-        Nouvelle consultation
+    <div class="pv-actions">
+      <a class="btn pv-consult-cta" href="index.php?page=consultation_edit&patient_id=<?= h($patient_id) ?>">
+        <i class="bi bi-plus-circle-fill"></i>
+        <span>Nouvelle consultation</span>
       </a>
       <a class="btn btn-outline-primary btn-sm" href="index.php?page=intervention&patient_id=<?= h($patient_id) ?>">
         + Intervention
@@ -354,6 +429,51 @@ $canDeletePatient = (count($consultations) === 0 && count($interventions) === 0)
     </div>
   </div>
   
+</div>
+
+<div class="modal fade" id="patientAiModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content pv-ai-modal">
+      <div class="modal-header border-0 pb-0">
+        <div>
+          <div class="pv-ai-kicker">Assistant clinique</div>
+          <h5 class="modal-title mb-1">Mon Assistant IA</h5>
+          <p class="text-muted small mb-0">Choisissez la portée du résumé.</p>
+        </div>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fermer"></button>
+      </div>
+      <div class="modal-body pt-3">
+        <div class="pv-ai-choice-grid" id="pvAiChoices">
+          <button type="button" class="pv-ai-choice" data-mode="latest">
+            <span class="pv-ai-choice-title">Dernière consultation</span>
+            <span class="pv-ai-choice-text">Résumé clinique court sur la consultation la plus récente.</span>
+          </button>
+          <button type="button" class="pv-ai-choice" data-mode="history">
+            <span class="pv-ai-choice-title">Tout l’historique</span>
+            <span class="pv-ai-choice-text">Aperçu global du cas depuis le début.</span>
+          </button>
+        </div>
+        <div class="pv-ai-state d-none" id="pvAiLoading">
+          <div class="spinner-border text-primary" role="status"></div>
+          <div>
+            <div class="fw-semibold">Analyse en cours</div>
+            <div class="text-muted small">Résumé clinique compact en préparation…</div>
+          </div>
+        </div>
+        <div class="pv-ai-result d-none" id="pvAiResultWrap">
+          <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+            <div>
+              <div class="pv-ai-kicker">Résultat</div>
+              <div class="fw-semibold" id="pvAiResultTitle">Résumé</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" id="pvAiBackBtn">Retour</button>
+          </div>
+          <div class="pv-ai-result-card" id="pvAiResultBody"></div>
+        </div>
+        <div class="alert alert-danger d-none mt-3 mb-0" id="pvAiError"></div>
+      </div>
+    </div>
+  </div>
 </div>
 <?php
 /* ===== Courbe de poids (données) ===== */
@@ -378,13 +498,12 @@ $wVals   = array_map(fn($r)=>(int)$r['poids'], $weights);
       <?php endif; ?>
     </div>
     <button id="pvWeightToggle" class="btn btn-sm btn-outline-primary" 
-            type="button" data-bs-toggle="collapse" data-bs-target="#pvWeightWrap"
-            aria-expanded="false" aria-controls="pvWeightWrap">
+            type="button" aria-expanded="false" aria-controls="pvWeightWrap">
       Courbe de poids +
     </button>
   </div>
 
-  <div id="pvWeightWrap" class="collapse">
+  <div id="pvWeightWrap" class="d-none">
     <div class="card-body">
       <?php if (!$wVals): ?>
         <div class="text-muted small">Aucune mesure de poids enregistrée pour ce patient.</div>
@@ -403,8 +522,76 @@ $wVals   = array_map(fn($r)=>(int)$r['poids'], $weights);
   position:relative;
   height: 260px;
 }
+.pv-ai-modal{
+  border:0;
+  border-radius:24px;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at top right, rgba(18,116,255,.08), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+}
+.pv-ai-kicker{
+  font-size:.72rem;
+  font-weight:700;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+  color:#64748b;
+}
+.pv-ai-choice-grid{
+  display:grid;
+  gap:.85rem;
+}
+.pv-ai-choice{
+  width:100%;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:.25rem;
+  text-align:left;
+  border:1px solid rgba(15,23,42,.1);
+  background:#fff;
+  border-radius:20px;
+  padding:1rem 1rem 1.05rem;
+  box-shadow:0 12px 26px rgba(15,23,42,.06);
+}
+.pv-ai-choice-title{
+  font-weight:700;
+  color:#0f172a;
+}
+.pv-ai-choice-text{
+  color:#64748b;
+  font-size:.92rem;
+  line-height:1.4;
+}
+.pv-ai-state{
+  display:flex;
+  align-items:center;
+  gap:.85rem;
+  padding:1rem;
+  border-radius:18px;
+  background:#fff;
+  border:1px solid rgba(15,23,42,.08);
+}
+.pv-ai-result-card{
+  white-space:pre-line;
+  padding:1rem;
+  border-radius:20px;
+  background:#fff;
+  border:1px solid rgba(15,23,42,.08);
+  color:#0f172a;
+  line-height:1.6;
+  box-shadow:0 14px 28px rgba(15,23,42,.06);
+}
 @media (max-width:576px){
   .pv-weight-chartbox{ height: 200px; }
+  .pv-ai-modal{
+    border-radius:24px 24px 0 0;
+    min-height:72vh;
+  }
+  .pv-ai-choice{
+    padding:1rem;
+    border-radius:18px;
+  }
 }
 </style>
 
@@ -429,8 +616,9 @@ $wVals   = array_map(fn($r)=>(int)$r['poids'], $weights);
 
   // bouton + / -
   function updateToggleText(){
-    const open = wrap.classList.contains('show');
+    const open = !wrap.classList.contains('d-none');
     toggle.textContent = open ? 'Courbe de poids -' : 'Courbe de poids +';
+    toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   }
 
   // init du graphique (une seule fois, à l’ouverture)
@@ -505,18 +693,25 @@ $wVals   = array_map(fn($r)=>(int)$r['poids'], $weights);
     });
   }
 
-  // lazy-init à l'ouverture
-  if (wrap){
-    wrap.addEventListener('shown.bs.collapse', function(){
+  if (wrap && toggle){
+    toggle.addEventListener('click', function(){
+      const open = wrap.classList.toggle('d-none') === false;
       updateToggleText();
-      ensureChartJs(() => {
-        // petit délai pour laisser le layout se poser avant le compute du canvas
-        setTimeout(initChart, 10);
-      });
+      if (open) {
+        ensureChartJs(() => {
+          setTimeout(() => {
+            initChart();
+            if (chartInstance) chartInstance.resize();
+          }, 30);
+        });
+      }
     });
-    wrap.addEventListener('hidden.bs.collapse', updateToggleText);
-    // état initial (plié)
     updateToggleText();
+    window.addEventListener('resize', function(){
+      if (chartInstance && !wrap.classList.contains('d-none')) {
+        chartInstance.resize();
+      }
+    });
   }
 })();
 </script>
@@ -1082,4 +1277,83 @@ document.addEventListener('DOMContentLoaded', function(){
     if (m.parentElement !== document.body) document.body.appendChild(m);
   });
 });
+
+(() => {
+  const modal = document.getElementById('patientAiModal');
+  if (!modal) return;
+
+  const patientId = <?= json_encode((int)$patient_id) ?>;
+  const csrfToken = <?= json_encode(csrf_token(), JSON_UNESCAPED_UNICODE) ?>;
+  const choices = document.getElementById('pvAiChoices');
+  const loading = document.getElementById('pvAiLoading');
+  const resultWrap = document.getElementById('pvAiResultWrap');
+  const resultTitle = document.getElementById('pvAiResultTitle');
+  const resultBody = document.getElementById('pvAiResultBody');
+  const errorBox = document.getElementById('pvAiError');
+  const backBtn = document.getElementById('pvAiBackBtn');
+
+  function showState(state, payload = {}) {
+    choices.classList.toggle('d-none', state !== 'choices');
+    loading.classList.toggle('d-none', state !== 'loading');
+    resultWrap.classList.toggle('d-none', state !== 'result');
+    errorBox.classList.add('d-none');
+    errorBox.textContent = '';
+
+    if (state === 'result') {
+      resultTitle.textContent = payload.title || 'Résumé';
+      resultBody.textContent = payload.body || '';
+    }
+    if (state === 'error') {
+      choices.classList.remove('d-none');
+      errorBox.classList.remove('d-none');
+      errorBox.textContent = payload.message || 'Impossible de générer le résumé.';
+    }
+  }
+
+  async function requestSummary(mode) {
+    showState('loading');
+
+    const form = new FormData();
+    form.append('csrf_token', csrfToken);
+    form.append('patient_id', String(patientId));
+    form.append('mode', mode);
+
+    try {
+      const res = await fetch('api/patient_ai_summary.php', {
+        method: 'POST',
+        body: form,
+        headers: { 'Accept': 'application/json' },
+      });
+      const text = await res.text();
+      let data = null;
+      try {
+        data = JSON.parse(text);
+      } catch (_) {
+        throw new Error('Réponse invalide du serveur');
+      }
+
+      if (!res.ok || !data || !data.ok) {
+        throw new Error((data && data.msg) ? data.msg : 'Impossible de générer le résumé');
+      }
+
+      showState('result', {
+        title: data.label || 'Résumé',
+        body: data.summary || '',
+      });
+    } catch (err) {
+      showState('error', {
+        message: err && err.message ? err.message : 'Impossible de générer le résumé',
+      });
+    }
+  }
+
+  choices?.addEventListener('click', (e) => {
+    const btn = e.target.closest('[data-mode]');
+    if (!btn) return;
+    requestSummary(btn.getAttribute('data-mode') || 'latest');
+  });
+
+  backBtn?.addEventListener('click', () => showState('choices'));
+  modal.addEventListener('hidden.bs.modal', () => showState('choices'));
+})();
 </script>

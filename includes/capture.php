@@ -3,12 +3,8 @@
 // Modal universel de capture (caméra + upload) pour VETLINK
 // - API: capture_handle($storeDir, $options=[])
 // - Expose window.openCaptureModal({ onDone(files: string[]) })
-//
-// Dépendances front : Bootstrap 5 (CSS+JS) + (optionnel) ./assets/vendor/gif.js/gif.js & gif.worker.js
 
-// ── Protection : accès direct à l’endpoint upload ──────────────────────────
-// Quand le fichier est requêté directement via HTTP (capture_upload=1),
-// il faut authentifier avant tout traitement.
+// ── Protection : accès direct à l'endpoint upload ──────────────────────────
 if (isset($_GET['capture_upload']) && !function_exists('capture_handle')) {
     require_once __DIR__ . '/auth.php';
     if (!is_logged_in()) {
@@ -18,29 +14,17 @@ if (isset($_GET['capture_upload']) && !function_exists('capture_handle')) {
         exit;
     }
 }
-//   capture_handle('uploads/captest', ['modal_id'=>'capTestModal', 'debug'=>1]);
-//   <button onclick="openCaptureModal({onDone:(files)=>console.log(files)})">Joindre</button>
 
 if (!function_exists('capture_handle')) {
 
-  /**
-   * Valide que storeDir est un chemin relatif sûr à l'intérieur de uploads/.
-   * Retourne le chemin nettoyé ou null si invalide.
-   */
   function _cap_validate_store_dir(string $dir): ?string {
-    // Neutralise null bytes, CRLF et backslashes
     $dir = str_replace(["\0", "\r", "\n", '\\'], ['', '', '', '/'], trim($dir));
-    // Supprime le slash initial
     $dir = ltrim($dir, '/');
-    // Doit commencer par uploads/
     if (strncmp($dir, 'uploads/', 8) !== 0) return null;
-    // Interdit la traversal de répertoire
     foreach (explode('/', $dir) as $seg) {
       if ($seg === '..' || $seg === '.') return null;
     }
-    // Caractères autorisés seulement : alphanumériques, /, - , _
     if (!preg_match('#^[a-zA-Z0-9/_\-]+$#', $dir)) return null;
-    // Longueur max
     if (strlen($dir) > 200) return null;
     return $dir;
   }
@@ -66,215 +50,141 @@ if (!function_exists('capture_handle')) {
     return $prefix . '_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.' . $ext;
   }
 
-  function _cap_perm_octal($path): ?string {
-    clearstatcache(true, $path);
-    $p = @fileperms($path);
-    return $p !== false ? substr(sprintf('%o', $p), -4) : null;
-  }
+  /**
+   * Compresse une image JPEG ou PNG via GD (redimensionne + qualité réduite).
+   * Cible : ≤ 500 Ko pour JPEG, PNG compressé niveau 7.
+   */
+  function _cap_compress_image(string $bin, string $mime, int $maxW = 1920): ?string {
+    $src = @imagecreatefromstring($bin);
+    if (!$src) return null;
 
-  function _cap_owner_group($path): array {
-    $uid = @fileowner($path);
-    $gid = @filegroup($path);
-    $u = function_exists('posix_getpwuid') && $uid !== false ? (@posix_getpwuid($uid)['name'] ?? $uid) : $uid;
-    $g = function_exists('posix_getgrgid') && $gid !== false ? (@posix_getgrgid($gid)['name'] ?? $gid) : $gid;
-    return [$u, $g];
-  }
-
-  function _cap_php_ini(): array {
-    return [
-      'file_uploads'        => ini_get('file_uploads'),
-      'upload_max_filesize' => ini_get('upload_max_filesize'),
-      'post_max_size'       => ini_get('post_max_size'),
-      'max_file_uploads'    => ini_get('max_file_uploads'),
-      'memory_limit'        => ini_get('memory_limit'),
-      'max_input_vars'      => ini_get('max_input_vars'),
-      'max_input_time'      => ini_get('max_input_time'),
-      'default_socket_timeout'=> ini_get('default_socket_timeout'),
-      'session.save_path'   => ini_get('session.save_path'),
-      'sys_get_temp_dir'    => sys_get_temp_dir(),
-    ];
-  }
-
-  function _cap_save_data_url(string $dataUrl, string $storeDir, bool $debug=false, array &$dbg_ref = []): ?string {
-    if (!preg_match('#^data:(image/(?:jpeg|png|gif));base64,(.+)$#', $dataUrl, $m)) return null;
-    $mime = $m[1];
-    $bin  = base64_decode($m[2], true);
-    if ($bin === false) return null;
-
-    $ext = $mime === 'image/png' ? 'png' : ($mime === 'image/gif' ? 'gif' : 'jpg');
-    [$abs, $rel] = _cap_ensure_dir($storeDir);
-    $name = _cap_unique_name('cap', $ext);
-    $absFile = $abs.'/'.$name;
-    $ok = @file_put_contents($absFile, $bin);
-    if ($ok === false) return null;
-    @chmod($absFile, 0664);
-
-    if ($debug) {
-      $perm = _cap_perm_octal($absFile);
-      [$u,$g] = _cap_owner_group($absFile);
-      $dbg_ref['saved'] = [
-        'target_abs' => $absFile,
-        'target_rel' => rtrim($rel,'/').'/'.$name,
-        'bytes'      => strlen($bin),
-        'mime'       => $mime,
-        'exists'     => file_exists($absFile),
-        'size'       => @filesize($absFile),
-        'perm'       => $perm,
-        'owner'      => $u,
-        'group'      => $g,
-        'is_writable'=> is_writable($absFile),
-      ];
+    $w = imagesx($src); $h = imagesy($src);
+    if ($w > $maxW) {
+      $nh  = (int)round($h * $maxW / $w);
+      $dst = imagecreatetruecolor($maxW, $nh);
+      if ($mime === 'image/png') {
+        imagealphablending($dst, false);
+        imagesavealpha($dst, true);
+      }
+      imagecopyresampled($dst, $src, 0, 0, 0, 0, $maxW, $nh, $w, $h);
+      imagedestroy($src);
+      $src = $dst;
     }
 
-    return rtrim($rel,'/').'/'.$name;
+    ob_start();
+    if ($mime === 'image/png') {
+      imagepng($src, null, 7);
+      $out = ob_get_clean();
+    } else {
+      $quality = 85;
+      do {
+        ob_clean();
+        imagejpeg($src, null, $quality);
+        $quality -= 5;
+      } while (ob_get_length() > 500 * 1024 && $quality > 30);
+      $out = ob_get_clean();
+    }
+    imagedestroy($src);
+    return $out ?: null;
   }
 
-  function _cap_handle_files(string $storeDir, string $field = 'files', bool $debug=false, array &$dbg_ref = []): array {
+  function _cap_save_data_url(string $dataUrl, string $storeDir): ?string {
+    // Accepte les MIME avec paramètres : "video/webm;codecs=vp8,opus"
+    if (!preg_match('#^data:((?:image|video)/[a-zA-Z0-9]+)[^,]*;base64,(.+)$#s', $dataUrl, $m)) return null;
+    $mime = $m[1]; // ex: "image/jpeg", "video/webm"
+    $bin  = base64_decode($m[2], true);
+    if ($bin === false || strlen($bin) < 4) return null;
+
+    if (in_array($mime, ['image/jpeg', 'image/png'], true)) {
+      $compressed = _cap_compress_image($bin, $mime);
+      if ($compressed) $bin = $compressed;
+    }
+
+    // Déduire l'extension depuis le MIME de base
+    if      (str_contains($mime, 'webm')) $ext = 'webm';
+    elseif  (str_contains($mime, 'mp4'))  $ext = 'mp4';
+    elseif  (str_contains($mime, 'png'))  $ext = 'png';
+    elseif  (str_contains($mime, 'gif'))  $ext = 'gif';
+    else                                   $ext = 'jpg';
+    [$abs, $rel] = _cap_ensure_dir($storeDir);
+    $name    = _cap_unique_name('cap', $ext);
+    $absFile = $abs . '/' . $name;
+    if (@file_put_contents($absFile, $bin) === false) return null;
+    @chmod($absFile, 0664);
+    return rtrim($rel, '/') . '/' . $name;
+  }
+
+  function _cap_handle_files(string $storeDir, string $field = 'files'): array {
     if (empty($_FILES[$field]) || empty($_FILES[$field]['name'])) return [];
     [$abs, $rel] = _cap_ensure_dir($storeDir);
 
-    $saved = [];
+    $allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webm', 'mp4'];
+    $saved      = [];
     $names  = (array)$_FILES[$field]['name'];
     $tmps   = (array)$_FILES[$field]['tmp_name'];
     $errors = (array)$_FILES[$field]['error'];
     $sizes  = (array)($_FILES[$field]['size'] ?? []);
-    $types  = (array)($_FILES[$field]['type'] ?? []);
-
-    if ($debug) { $dbg_ref['incoming_files'] = []; }
 
     foreach ($names as $i => $nm) {
-      $err = ($errors[$i] ?? UPLOAD_ERR_NO_FILE);
+      if (($errors[$i] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) continue;
       $tmp = $tmps[$i] ?? null;
-      $sz  = $sizes[$i] ?? null;
-      $typ = $types[$i] ?? null;
-
-      if ($debug) {
-        $dbg_ref['incoming_files'][] = [
-          'name'   => $nm,
-          'tmp'    => $tmp,
-          'size'   => $sz,
-          'type'   => $typ,
-          'error'  => $err,
-          'is_uploaded' => $tmp ? is_uploaded_file($tmp) : false,
-        ];
-      }
-
-      if ($err !== UPLOAD_ERR_OK) continue;
+      $sz  = (int)($sizes[$i] ?? 0);
       if (!$tmp || !is_uploaded_file($tmp)) continue;
+      if ($sz > 50 * 1024 * 1024) continue; // 50 Mo max
 
       $ext = strtolower(pathinfo($nm, PATHINFO_EXTENSION));
-      if (!in_array($ext, ['pdf','jpg','jpeg','png'], true)) continue;
+      if (!in_array($ext, $allowedExt, true)) continue;
 
-      $safe = _cap_unique_name('up', $ext);
-      $target = $abs.'/'.$safe;
-      $moved = @move_uploaded_file($tmp, $target);
+      // Compression serveur JPEG/PNG (sécurité : le client compresse déjà, mais pas toujours)
+      if (in_array($ext, ['jpg', 'jpeg', 'png'], true)) {
+        $mime = ($ext === 'png') ? 'image/png' : 'image/jpeg';
+        $bin  = @file_get_contents($tmp);
+        if ($bin) {
+          $compressed = _cap_compress_image($bin, $mime);
+          if ($compressed) @file_put_contents($tmp, $compressed);
+        }
+      }
 
-      if ($moved) {
+      $safe   = _cap_unique_name('up', $ext);
+      $target = $abs . '/' . $safe;
+      if (@move_uploaded_file($tmp, $target)) {
         @chmod($target, 0664);
-        $relPath = rtrim($rel,'/').'/'.$safe;
-        $saved[] = $relPath;
-
-        if ($debug) {
-          $perm = _cap_perm_octal($target);
-          [$u,$g] = _cap_owner_group($target);
-          $dbg_ref['incoming_files'][count($saved)-1]['saved'] = [
-            'target_abs' => $target,
-            'target_rel' => $relPath,
-            'exists'     => file_exists($target),
-            'size'       => @filesize($target),
-            'perm'       => $perm,
-            'owner'      => $u,
-            'group'      => $g,
-            'is_writable'=> is_writable($target),
-          ];
-        }
-      } else {
-        if ($debug) {
-          $dbg_ref['incoming_files'][count($saved)]['move_failed'] = [
-            'target_abs' => $target,
-            'last_error' => error_get_last(),
-          ];
-        }
+        $saved[] = rtrim($rel, '/') . '/' . $safe;
       }
     }
     return $saved;
   }
 
-  // —— Endpoint AJAX: ?capture_upload=1 (+ debug optionnel) ——
+  // —— Endpoint AJAX : ?capture_upload=1 ——
   if (isset($_GET['capture_upload'])) {
     header('Content-Type: application/json; charset=utf-8');
 
-    // Validation stricte du répertoire cible (anti path-traversal)
-    $rawDir = $_POST['storeDir'] ?? 'uploads/misc';
-    $dir    = _cap_validate_store_dir($rawDir);
+    $dir = _cap_validate_store_dir($_POST['storeDir'] ?? 'uploads/misc');
     if ($dir === null) {
       http_response_code(400);
       echo json_encode(['ok' => false, 'error' => 'invalid_store_dir']);
       exit;
     }
 
-    $mode   = $_POST['mode'] ?? 'data';
-    $debug  = (isset($_REQUEST['debug']) && in_array(strtolower((string)$_REQUEST['debug']), ['1','true','yes'], true));
-    $out    = ['ok'=>false, 'files'=>[]];
+    $mode = $_POST['mode'] ?? 'data';
+    $out  = ['ok' => false, 'files' => []];
 
     try {
-      if ($debug) {
-        [$abs, $rel] = _cap_ensure_dir($dir);
-        [$u,$g] = _cap_owner_group($abs);
-        $out['_debug'] = [
-          'time'        => date('c'),
-          'request'     => [
-            'method' => $_SERVER['REQUEST_METHOD'] ?? '',
-            'uri'    => $_SERVER['REQUEST_URI'] ?? '',
-            'ip'     => $_SERVER['REMOTE_ADDR'] ?? '',
-            'ua'     => $_SERVER['HTTP_USER_AGENT'] ?? '',
-          ],
-          'php_ini'     => _cap_php_ini(),
-          'target'      => [
-            'storeDir_rel' => $dir,
-            'storeDir_abs' => $abs,
-            'exists'       => is_dir($abs),
-            'is_writable'  => is_writable($abs),
-            'perm'         => _cap_perm_octal($abs),
-            'owner'        => $u,
-            'group'        => $g,
-            'realpath'     => realpath($abs),
-            'free_space'   => @disk_free_space($abs),
-          ],
-          'post_keys'   => array_keys($_POST),
-          'files_keys'  => array_keys($_FILES),
-        ];
-      }
-
       if ($mode === 'data' && !empty($_POST['dataUrl'])) {
-        if ($debug) {
-          $len = strlen($_POST['dataUrl']);
-          $head = substr($_POST['dataUrl'], 0, 64);
-          $out['_debug']['data_url'] = ['length'=> $len, 'head64'=> $head];
-        }
-        $saved = _cap_save_data_url($_POST['dataUrl'], $dir, $debug, $out['_debug']);
+        $saved = _cap_save_data_url($_POST['dataUrl'], $dir);
         if ($saved) { $out['ok'] = true; $out['files'] = [$saved]; }
-        else { $out['error'] = 'save_data_url_failed'; }
+        else { $out['error'] = 'save_failed'; }
 
       } elseif ($mode === 'upload') {
-        $saved = _cap_handle_files($dir, 'files', $debug, $out['_debug']);
+        $saved = _cap_handle_files($dir, 'files');
         if ($saved) { $out['ok'] = true; $out['files'] = $saved; }
-        else { $out['error'] = 'move_uploaded_files_failed_or_empty'; }
+        else { $out['error'] = 'no_files_saved'; }
 
       } else {
-        $out['error'] = 'invalid_mode_or_missing_payload';
+        $out['error'] = 'invalid_mode';
       }
     } catch (\Throwable $e) {
-      $out['error'] = 'capture_exception';
-      if ($debug) {
-        $out['_debug']['exception'] = [
-          'message' => $e->getMessage(),
-          'file'    => $e->getFile(),
-          'line'    => $e->getLine(),
-          'trace'   => explode("\n", $e->getTraceAsString()),
-          'last_error' => error_get_last(),
-        ];
-      }
+      $out['error'] = 'server_exception';
     }
     echo json_encode($out);
     exit;
@@ -286,15 +196,10 @@ if (!function_exists('capture_handle')) {
     $modalId = $options['modal_id'] ?? 'vlCapture';
     $maxW    = (int)($options['maxWidth'] ?? 1600);
     $quality = (float)($options['quality'] ?? 0.85);
-    $debug   = (int)($options['debug'] ?? 0);
-
-    echo '<script>window.__VL_GIFJS__=false;</script>';
-    if (is_file(_cap_abs('assets/vendor/gif.js/gif.js'))) {
-      echo '<script src="./assets/vendor/gif.js/gif.js"></script><script>window.__VL_GIFJS__=true;</script>';
-    }
+    // $options['debug'] accepté pour compat ascendante, ignoré
     ?>
     <style>
-      .cap-modal .modal-dialog { max-width: 400px; max-height: 80vh; margin: auto; }
+      .cap-modal .modal-dialog { max-width: 400px; margin: auto; }
       .cap-modal .modal-content {
         border-radius: 12px; box-shadow: 0 10px 28px rgba(0,0,0,.25);
         background:#fff; max-height:92vh; display:flex; flex-direction:column; overflow:hidden;
@@ -302,15 +207,11 @@ if (!function_exists('capture_handle')) {
       }
       .cap-toolbar { padding:.6rem .9rem; display:flex; align-items:center; border-bottom:1px solid #eee; gap:.5rem; }
       .cap-toolbar .title { font-weight:700; }
-      .cap-toolbar .btn-debug { display:inline-flex; align-items:center; gap:.4rem; }
-      <?php if (!$debug): ?>
-      .cap-toolbar .btn-debug { display:none !important; }
-      <?php endif; ?>
 
       .cap-body { flex:1 1 auto; background:#fff; overflow:auto; min-height:0; padding-bottom:.5rem; }
 
       @media (max-width: 576px) {
-        .cap-modal .modal-dialog { max-width: 94vw; max-height: 86vh; }
+        .cap-modal .modal-dialog { max-width: 94vw; }
         .cap-cam-aspect { aspect-ratio: 1 / 1; }
       }
       @media (max-height: 780px) {
@@ -326,14 +227,14 @@ if (!function_exists('capture_handle')) {
 
       .cap-cam-wrap { width:100%; max-width:640px; margin:0 auto; }
       .cap-cam-aspect { position:relative; width:100%; aspect-ratio: 3 / 4; background:#000; border-radius:12px; overflow:hidden; }
-      .cap-cam-aspect video, .cap-cam-aspect canvas, .cap-cam-aspect img.preview { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
-      .cap-cam-aspect .cap-guides{ position:absolute; inset:10px; border:2px dashed rgba(255,255,255,.85); border-radius:10px; pointer-events:none; }
+      .cap-cam-aspect video, .cap-cam-aspect canvas { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+      .cap-cam-aspect .cap-guides { position:absolute; inset:10px; border:2px dashed rgba(255,255,255,.85); border-radius:10px; pointer-events:none; }
 
       .cap-controls { display:flex; gap:.5rem; justify-content:center; margin-top:.65rem; flex-wrap:nowrap; }
       .cap-controls .btn { padding:.55rem .9rem; font-weight:700; border-radius:10px; }
-      .cap-controls [data-act="gif3s"].recording { background:#dc3545; color:#fff; border-color:#dc3545; animation: blink .8s infinite; }
-      .cap-controls [data-act="gif3s"].uploading { background:#198754; color:#fff; border-color:#198754; animation: blink .8s infinite; }
-      @keyframes blink{0%,100%{opacity:.6}50%{opacity:1}}
+      .cap-controls [data-act="video"].recording { background:#dc3545; color:#fff; border-color:#dc3545; animation: cap-blink .8s infinite; }
+      .cap-controls [data-act="video"].uploading { background:#198754; color:#fff; border-color:#198754; animation: cap-blink .8s infinite; }
+      @keyframes cap-blink{0%,100%{opacity:.6}50%{opacity:1}}
 
       .cap-pane[data-name="cam"] [data-role="list"] { display:none !important; }
 
@@ -342,6 +243,7 @@ if (!function_exists('capture_handle')) {
       .cap-list { max-width:640px; margin:1rem auto 0; }
       .cap-item { display:flex; align-items:center; gap:.5rem; padding:.5rem; border:1px solid #eee; border-radius:10px; margin-bottom:.5rem; }
       .cap-item small { word-break:break-all; }
+      .cap-item .cap-compress-tag { font-size:.7rem; color:#198754; font-weight:600; margin-left:.25rem; }
 
       @media (max-width: 576px) {
         .cap-pane { padding:.75rem; }
@@ -349,21 +251,6 @@ if (!function_exists('capture_handle')) {
         .cap-controls { gap:.4rem; }
         .cap-controls .btn { padding:.5rem .75rem; font-weight:700; }
       }
-
-      /* —— PANNEAU DEBUG —— */
-      .cap-debug {
-        display:none;
-        background:#0b1220; color:#dbeafe;
-        border-top:1px solid rgba(255,255,255,.08);
-        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-        font-size:12px; line-height:1.4;
-        max-height:35vh; overflow:auto; padding:.75rem;
-      }
-      .cap-debug.show { display:block; }
-      .cap-debug h6 { font-size:12px; margin:0 0 .5rem; color:#93c5fd; }
-      .cap-debug pre { margin:0; white-space:pre-wrap; word-break:break-word; }
-      .cap-debug .muted { color:#9ca3af; }
-      .cap-debug .sep { margin:.5rem 0; border-top:1px dashed rgba(255,255,255,.15); }
     </style>
 
     <div class="modal fade cap-modal" id="<?= htmlspecialchars($modalId) ?>" tabindex="-1" aria-hidden="true">
@@ -371,8 +258,7 @@ if (!function_exists('capture_handle')) {
         <div class="modal-content">
           <div class="cap-toolbar">
             <div class="title">Capture de fichiers</div>
-            <div class="ms-auto d-flex align-items-center gap-2">
-              <button type="button" class="btn btn-sm btn-outline-secondary btn-debug" id="<?= htmlspecialchars($modalId) ?>_dbgBtn">CMD</button>
+            <div class="ms-auto">
               <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">Fermer</button>
             </div>
           </div>
@@ -392,7 +278,7 @@ if (!function_exists('capture_handle')) {
                 </div>
                 <div class="cap-controls">
                   <button type="button" class="btn btn-primary" data-act="photo">Photo</button>
-                  <button type="button" class="btn btn-outline-primary" data-act="gif3s">Vidéo</button>
+                  <button type="button" class="btn btn-outline-primary" data-act="video">Vidéo</button>
                   <button type="button" class="btn btn-warning" data-act="recap" title="Réinitialiser" disabled>↺</button>
                 </div>
               </div>
@@ -402,10 +288,11 @@ if (!function_exists('capture_handle')) {
             <div class="cap-pane" data-name="upload">
               <div class="cap-drop" data-role="drop">
                 <p class="mb-2 fw-semibold">Déposez vos fichiers ici</p>
-                <p class="text-muted small mb-2">PDF, JPG, PNG (10 Mo max)</p>
+                <p class="text-muted small mb-2">PDF, JPG, PNG, GIF (10 Mo max)</p>
                 <label class="btn btn-outline-primary">
                   Choisir des fichiers
-                  <input type="file" name="files[]" multiple accept=".pdf,image/jpeg,image/png" hidden>
+                  <input type="file" name="files[]" multiple
+                         accept=".pdf,image/jpeg,image/png,image/gif" hidden>
                 </label>
               </div>
               <div class="cap-list" data-role="list"></div>
@@ -415,70 +302,21 @@ if (!function_exists('capture_handle')) {
           <div class="p-2 text-center">
             <button type="button" class="btn btn-success" data-act="done" disabled>Valider</button>
           </div>
-
-          <!-- —— Panneau Debug —— -->
-          <div class="cap-debug" id="<?= htmlspecialchars($modalId) ?>_debugPanel">
-            <h6>Client logs</h6>
-            <pre id="<?= htmlspecialchars($modalId) ?>_debugClient" class="muted">–</pre>
-            <div class="sep"></div>
-            <h6>Serveur (_debug)</h6>
-            <pre id="<?= htmlspecialchars($modalId) ?>_debugServer" class="muted">–</pre>
-          </div>
         </div>
       </div>
     </div>
 
     <script>
     (function(){
-      const MODAL_ID = <?= json_encode($modalId) ?>;
+      const MODAL_ID  = <?= json_encode($modalId) ?>;
       const STORE_DIR = <?= json_encode($rel) ?>;
-      const MAX_W = <?= (int)$maxW ?>;
-      const QUALITY = <?= (float)$quality ?>;
-      const GIF_WORKER = './assets/vendor/gif.js/gif.worker.js';
-      const DEBUG = <?= (int)$debug ?>;
-
-      const GIF_MAX_W = 960, GIF_FPS = 8, GIF_DELAY = Math.round(1000 / GIF_FPS), GIF_QLTY = 16;
+      const MAX_W     = <?= (int)$maxW ?>;
+      const QUALITY   = <?= (float)$quality ?>;
 
       const ENDPOINT = (function(){
-        const base = location.pathname + (location.search ? location.search + '&' : '?') + 'capture_upload=1';
-        return DEBUG ? (base + '&debug=1') : base;
+        const b = location.pathname + (location.search ? location.search + '&' : '?') + 'capture_upload=1';
+        return b;
       })();
-
-      // —— Debug UI helpers ——
-      const $dbgBtn   = document.getElementById(MODAL_ID + '_dbgBtn');
-      const $dbgPanel = document.getElementById(MODAL_ID + '_debugPanel');
-      const $dbgClient= document.getElementById(MODAL_ID + '_debugClient');
-      const $dbgServer= document.getElementById(MODAL_ID + '_debugServer');
-
-      function dbg(msg, payload){
-        if (!DEBUG) return;
-        try {
-          const ts = new Date().toISOString();
-          const line = payload !== undefined
-            ? `[${ts}] ${msg} ${typeof payload === 'string' ? payload : JSON.stringify(payload)}\n`
-            : `[${ts}] ${msg}\n`;
-          if ($dbgClient) {
-            if ($dbgClient.textContent === '–') $dbgClient.textContent = '';
-            $dbgClient.textContent += line;
-            // autoscroll
-            $dbgClient.parentElement.scrollTop = $dbgClient.parentElement.scrollHeight;
-          }
-          console.debug('[CAPTURE]', msg, payload ?? '');
-        } catch(e){}
-      }
-      function dbgServerDump(obj){
-        if (!DEBUG || !$dbgServer) return;
-        try {
-          $dbgServer.textContent = JSON.stringify(obj, null, 2);
-          $dbgServer.parentElement.scrollTop = 0;
-        } catch(e){}
-      }
-      if ($dbgBtn) {
-        $dbgBtn.addEventListener('click', ()=>{
-          if (!$dbgPanel) return;
-          $dbgPanel.classList.toggle('show');
-        });
-      }
 
       let onDoneCb = null;
       let modalInst = null;
@@ -487,10 +325,48 @@ if (!function_exists('capture_handle')) {
         return modalInst;
       }
 
-      const $modal = document.getElementById(MODAL_ID);
-      const $tabs = $modal.querySelectorAll('.cap-tab');
-      const $panes = $modal.querySelectorAll('.cap-pane');
+      const $modal   = document.getElementById(MODAL_ID);
+      const $tabs    = $modal.querySelectorAll('.cap-tab');
+      const $panes   = $modal.querySelectorAll('.cap-pane');
+      const $video   = $modal.querySelector('video');
+      const $canvas  = $modal.querySelector('canvas');
+      const $camList = $modal.querySelector('[data-name="cam"] [data-role="list"]');
+      const $btnDone = $modal.querySelector('[data-act="done"]');
+      const $btnRecap= $modal.querySelector('[data-act="recap"]');
+      const $btnVid  = $modal.querySelector('[data-act="video"]');
+      const $uplList = $modal.querySelector('[data-name="upload"] [data-role="list"]');
+      const $drop    = $modal.querySelector('[data-name="upload"] [data-role="drop"]');
+      const $file    = $drop ? $drop.querySelector('input[type="file"]') : null;
 
+      let stream = null;
+      let previewEl = null;
+      let lastSavedPaths = [];
+      let isUploading = 0;
+      let uplQueue = [];
+      let mediaRec = null;
+      let activeControllers = [];
+
+      function registerController(ctrl){ activeControllers.push(ctrl); return ctrl; }
+
+      function setUploading(on){
+        isUploading += on ? 1 : -1;
+        if (isUploading < 0) isUploading = 0;
+        $btnDone.textContent = (isUploading > 0) ? 'Envoi…' : 'Valider';
+        refreshDoneState();
+      }
+
+      function refreshDoneState(){
+        $btnDone.disabled = (isUploading > 0) || !(uplQueue.length > 0 || lastSavedPaths.length > 0);
+      }
+
+      function abortAllUploads(){
+        activeControllers.forEach(c=>{ try{ c.abort(); }catch(e){} });
+        activeControllers = []; isUploading = 0;
+        $btnDone.textContent = 'Valider';
+        refreshDoneState();
+      }
+
+      /* ── Tabs ── */
       $tabs.forEach(t=>{
         t.addEventListener('click', ()=>{
           $tabs.forEach(x=>x.classList.remove('active'));
@@ -498,332 +374,338 @@ if (!function_exists('capture_handle')) {
           const name = t.dataset.pane;
           $panes.forEach(p=>p.classList.toggle('active', p.dataset.name === name));
           refreshDoneState();
-          dbg('Tab switched', {pane: name});
         });
       });
 
-      const $video = $modal.querySelector('video');
-      const $canvas = $modal.querySelector('canvas');
-      const $camList = $modal.querySelector('[data-name="cam"] [data-role="list"]');
-      const $btnDone = $modal.querySelector('[data-act="done"]');
-      const $btnRecap = $modal.querySelector('[data-act="recap"]');
-      const $btnGif  = $modal.querySelector('[data-act="gif3s"]');
-
-      let stream = null;
-      let previewEl = null;
-      let lastSavedPaths = [];
-      let isUploading = 0;
-      let uplQueue = [];
-
-      let activeControllers = [];
-      function registerController(ctrl){ activeControllers.push(ctrl); return ctrl; }
-      function abortAllUploads(){
-        activeControllers.forEach(c=>{ try{ c.abort(); }catch(e){} });
-        activeControllers = [];
-        isUploading = 0;
-        refreshDoneState();
-        $btnDone.textContent = 'Valider';
-        dbg('Uploads aborted');
-      }
-
-      function setUploading(on){
-        isUploading += on ? 1 : -1;
-        if (isUploading < 0) isUploading = 0;
-        refreshDoneState();
-        $btnDone.textContent = (isUploading > 0) ? 'Envoi…' : 'Valider';
-        dbg('setUploading', {count:isUploading});
-      }
-      function refreshDoneState(){
-        const hasChoixUpload = uplQueue.length > 0;
-        const hasSaved = lastSavedPaths.length > 0;
-        $btnDone.disabled = (isUploading > 0) || !(hasChoixUpload || hasSaved);
-      }
-
+      /* ── Caméra ── */
       async function startCamera() {
         await stopCamera();
+        // Effacer tout src blob éventuel avant de brancher le stream
+        $video.pause();
+        $video.removeAttribute('src');
+        $video.srcObject = null;
         try {
-          const opts = { video: { facingMode: { ideal: 'environment' } }, audio:false };
-          dbg('startCamera opts', opts);
-          stream = await navigator.mediaDevices.getUserMedia(opts);
+          stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:{ ideal:'environment' } }, audio:false });
           $video.srcObject = stream;
-          dbg('camera started', stream.getVideoTracks().map(t=>t.label));
         } catch(e) {
-          console.warn(e); alert("Caméra indisponible.");
-          dbg('startCamera error', {message:e?.message});
+          console.warn('[capture] camera error', e);
+          alert("Caméra indisponible.");
         }
       }
       async function stopCamera(){
-        if (stream) { stream.getTracks().forEach(t=>t.stop()); stream = null; dbg('camera stopped'); }
+        if (stream) { stream.getTracks().forEach(t=>t.stop()); stream = null; }
       }
 
+      const $camAspect = $modal.querySelector('.cap-cam-aspect');
+      const $guides    = $modal.querySelector('.cap-guides');
+
+      /* ── Aperçu photo ── */
       function showPreviewCanvas() {
+        _removeVideoPlayer();
         $video.style.display = 'none';
         $canvas.style.display = 'block';
+        if ($guides) $guides.style.display = 'none';
         previewEl = $canvas;
         $btnRecap.disabled = false;
-        dbg('preview from canvas');
       }
-      function showPreviewImage(dataUrl) {
-        if (!previewEl || previewEl.tagName !== 'IMG') {
-          const img = document.createElement('img');
-          img.className = 'preview';
-          $video.parentElement.appendChild(img);
-          previewEl = img;
-        }
-        previewEl.src = dataUrl;
+
+      /* ── Lecteur vidéo après upload serveur ── */
+      function showVideoPlayer(serverRelPath) {
+        // Arrêter la caméra et masquer ses éléments
+        stopCamera();
         $video.style.display = 'none';
         $canvas.style.display = 'none';
+        if ($guides) $guides.style.display = 'none';
+
+        // Créer (ou réutiliser) un lecteur <video controls> dans la zone caméra
+        let player = $camAspect.querySelector('.cap-vid-player');
+        if (!player) {
+          player = document.createElement('video');
+          player.className = 'cap-vid-player';
+          player.controls = true;
+          player.loop     = true;
+          player.muted    = false;
+          player.playsInline = true;
+          // Couvre toute la zone, object-fit:contain pour voir la vidéo entière
+          player.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:10;';
+          $camAspect.appendChild(player);
+        }
+
+        // Résoudre le chemin relatif par rapport à la base de la page courante (même logique que le shim)
+        player.src = new URL(serverRelPath, document.baseURI || location.href).href;
+        player.onerror = () => alert('Vidéo inaccessible : ' + player.src + '\n' + (player.error?.message || ''));
+        player.load();
+        player.play().catch(() => {});
+        previewEl = player;
+        $btnVid.disabled = true;   // grisé jusqu'au reset
         $btnRecap.disabled = false;
-        dbg('preview from image', {len:(dataUrl||'').length});
+        refreshDoneState();
+      }
+
+      function _removeVideoPlayer() {
+        const player = $camAspect ? $camAspect.querySelector('.cap-vid-player') : null;
+        if (player) { player.onerror = null; player.pause(); player.src = ''; player.remove(); }
+        if ($guides) $guides.style.display = '';
+        $btnVid.disabled = false;
+        previewEl = null;
       }
 
       async function recapture() {
+        if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); mediaRec = null; }
         abortAllUploads();
         uplQueue = [];
-        const $uplList = $modal.querySelector('[data-name="upload"] [data-role="list"]');
+        lastSavedPaths = [];
         $uplList && ($uplList.innerHTML = '');
-        if (previewEl && previewEl.tagName === 'IMG') { previewEl.remove(); previewEl = null; }
+        _removeVideoPlayer();
         $canvas.style.display = 'none';
         $video.style.display = 'block';
         $btnRecap.disabled = true;
-        $btnGif.classList.remove('recording','uploading');
-        $btnGif.textContent = 'Vidéo';
-        dbg('recapture reset');
+        $btnVid.classList.remove('recording','uploading');
+        $btnVid.textContent = 'Vidéo';
         await startCamera();
       }
       $btnRecap.addEventListener('click', recapture);
 
+      /* ── Photo ── */
       async function takePhoto() {
         if (!stream) { await startCamera(); if (!stream) return; }
-        const w = $video.videoWidth || 1280;
-        const h = $video.videoHeight|| 720;
-        const scale = w > MAX_W ? (MAX_W / w) : 1;
+        const w = $video.videoWidth || 1280, h = $video.videoHeight || 720;
+        const scale = w > MAX_W ? MAX_W / w : 1;
         const tw = Math.round(w*scale), th = Math.round(h*scale);
-        dbg('takePhoto dims', {src:`${w}x${h}`, out:`${tw}x${th}`, quality:QUALITY});
-
         $canvas.width = tw; $canvas.height = th;
-        const ctx = $canvas.getContext('2d');
-        ctx.drawImage($video, 0,0, tw, th);
+        $canvas.getContext('2d').drawImage($video, 0, 0, tw, th);
         showPreviewCanvas();
 
         const dataUrl = $canvas.toDataURL('image/jpeg', QUALITY);
         setUploading(true);
         const json = await uploadDataUrl(dataUrl);
-        dbg('photo upload resp', json);
-        if (json && json.ok && json.files && json.files.length) {
+        if (json?.ok && json.files?.length) {
           lastSavedPaths.unshift(json.files[0]);
           addListItemCam(json.files[0]);
-        } else if (!json?.ok) {
-          alert('Erreur upload (photo).'); dbg('photo upload failed');
+        } else {
+          alert('Erreur upload (photo).');
         }
         setUploading(false);
       }
 
-      async function recordGif3s() {
-        if (!window.__VL_GIFJS__ || !(window.GIF)) {
-          alert("gif.js requis. Placez ./assets/vendor/gif.js/gif.js et gif.worker.js"); return;
-        }
+      /* ── Vidéo (MediaRecorder WebM) ── */
+      async function recordVideo() {
         if (!stream) { await startCamera(); if (!stream) return; }
 
-        $btnGif.classList.add('recording'); $btnGif.classList.remove('uploading'); $btnGif.textContent = 'Vidéo';
+        // Sélectionner le meilleur codec disponible
+        const mimeType = ['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm','video/mp4']
+          .find(t => { try { return MediaRecorder.isTypeSupported(t); } catch(e){ return false; } })
+          || 'video/webm';
 
-        const vw = $video.videoWidth || 640, vh = $video.videoHeight|| 480;
-        const scaleW = Math.min(1, GIF_MAX_W / (vw || GIF_MAX_W));
-        const tw = Math.max(1, Math.round((vw || 640) * scaleW));
-        const th = Math.max(1, Math.round((vh || 480) * scaleW));
-        dbg('recordGif3s dims', {src:`${vw}x${vh}`, out:`${tw}x${th}`, fps:GIF_FPS, delay:GIF_DELAY, quality:GIF_QLTY});
+        $btnVid.classList.add('recording'); $btnVid.textContent = '● 3s…';
 
-        const c = document.createElement('canvas'); c.width = tw; c.height = th;
-        const ctx = c.getContext('2d');
-        const gif = new GIF({ workers:2, quality: GIF_QLTY, width:tw, height:th, workerScript: GIF_WORKER, repeat:0 });
+        const chunks = [];
+        try {
+          mediaRec = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 800_000 });
+        } catch(e) {
+          // Fallback sans options
+          mediaRec = new MediaRecorder(stream);
+        }
 
-        const frames = GIF_FPS * 3; let n = 0;
-        const frameTimer = setInterval(()=>{
-          ctx.drawImage($video, 0,0, tw, th);
-          gif.addFrame(c, {copy:true, delay: GIF_DELAY});
-          if (++n >= frames) {
-            clearInterval(frameTimer);
-            $btnGif.classList.remove('recording'); $btnGif.classList.add('uploading'); $btnGif.textContent = 'Envoi…';
-            dbg('gif frames added', {count:n});
+        mediaRec.ondataavailable = e => { if (e.data?.size > 0) chunks.push(e.data); };
 
-            gif.on('finished', async function(blob){
-              dbg('gif finished blob', {size: blob.size});
-              const fr = new FileReader();
-              fr.onload = async () => {
-                const dataUrl = fr.result;
-                showPreviewImage(dataUrl);
-                setUploading(true);
-                const json = await uploadDataUrl(dataUrl);
-                dbg('gif upload resp', json);
-                if (json && json.ok && json.files && json.files.length) {
-                  lastSavedPaths.unshift(json.files[0]);
-                  addListItemCam(json.files[0]);
-                } else if (!json?.ok) {
-                  alert('Erreur upload (gif).'); dbg('gif upload failed');
-                }
-                setUploading(false);
-                $btnGif.classList.remove('uploading'); $btnGif.textContent = 'Vidéo';
-              };
-              fr.readAsDataURL(blob);
-            });
-            gif.render();
+        mediaRec.onstop = async () => {
+          const actualType = mediaRec.mimeType || mimeType;
+          const blob = new Blob(chunks, { type: actualType });
+          mediaRec = null;
+
+          $btnVid.classList.remove('recording'); $btnVid.classList.add('uploading'); $btnVid.textContent = 'Envoi…';
+          setUploading(true);
+
+          // Convertir en dataURL → même chemin serveur que les photos (éprouvé)
+          const json = await new Promise(resolve => {
+            const fr = new FileReader();
+            fr.onload  = async () => resolve(await uploadDataUrl(fr.result));
+            fr.onerror = () => resolve(null);
+            fr.readAsDataURL(blob);
+          });
+
+          setUploading(false);
+          $btnVid.classList.remove('uploading'); $btnVid.textContent = 'Vidéo';
+
+          if (json?.ok && json.files?.length) {
+            lastSavedPaths.unshift(json.files[0]);
+            showVideoPlayer(json.files[0]);
+          } else {
+            alert('Erreur upload (vidéo).');
           }
-        }, GIF_DELAY);
+        };
+
+        // start() sans timeslice : un seul ondataavailable à la fin, blob complet garanti
+        mediaRec.start();
+        setTimeout(() => { if (mediaRec && mediaRec.state === 'recording') mediaRec.stop(); }, 3000);
       }
 
-      async function uploadDataUrl(dataUrl){
+      $modal.querySelector('[data-act="photo"]').addEventListener('click', takePhoto);
+      $btnVid.addEventListener('click', () => {
+        if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); return; }
+        recordVideo();
+      });
+
+      /* ── Upload réseau ── */
+      async function uploadDataUrl(dataUrl) {
         const fd = new FormData();
         fd.append('storeDir', STORE_DIR);
         fd.append('mode', 'data');
         fd.append('dataUrl', dataUrl);
-        if (DEBUG) fd.append('debug', '1');
-
         const ctrl = registerController(new AbortController());
-        try{
-          dbg('POST dataUrl ->', {ENDPOINT});
-          const resp = await fetch(ENDPOINT, {method:'POST', body: fd, signal: ctrl.signal});
-          const text = await resp.text();
-          dbg('raw response', text.slice(0, 400) + (text.length>400?'…':''));
-          let json = null; try { json = JSON.parse(text); } catch(e){ dbg('JSON parse error', e?.message); }
-          if (json && json._debug) { dbg('SERVER DEBUG', '— dump attached —'); dbgServerDump(json._debug); }
-          return json;
-        } catch(e){
-          dbg('fetch error', e?.message || e);
-          return null;
-        } finally {
-          activeControllers = activeControllers.filter(c => c !== ctrl);
-        }
+        try {
+          const resp = await fetch(ENDPOINT, { method:'POST', body:fd, signal:ctrl.signal });
+          return await resp.json();
+        } catch(e) { return null; }
+        finally { activeControllers = activeControllers.filter(c=>c!==ctrl); }
       }
 
-      function addListItemCam(_relPath){ refreshDoneState(); }
+      async function uploadBlob(blob, ext) {
+        const fd = new FormData();
+        fd.append('storeDir', STORE_DIR);
+        fd.append('mode', 'upload');
+        fd.append('files[]', blob, `cap_${Date.now()}.${ext}`);
+        const ctrl = registerController(new AbortController());
+        try {
+          const resp = await fetch(ENDPOINT, { method:'POST', body:fd, signal:ctrl.signal });
+          return await resp.json();
+        } catch(e) { return null; }
+        finally { activeControllers = activeControllers.filter(c=>c!==ctrl); }
+      }
 
-      $modal.querySelector('[data-act="photo"]').addEventListener('click', takePhoto);
-      $modal.querySelector('[data-act="gif3s"]').addEventListener('click', recordGif3s);
+      function addListItemCam(relPath) { refreshDoneState(); }
 
-      const $drop = $modal.querySelector('[data-name="upload"] [data-role="drop"]');
-      const $file = $drop ? $drop.querySelector('input[type="file"]') : null;
-      const $uplList = $modal.querySelector('[data-name="upload"] [data-role="list"]');
+      /* ── Compression image côté client (upload tab) ── */
+      function compressImageFile(file) {
+        return new Promise(resolve => {
+          const img = new Image();
+          const url = URL.createObjectURL(file);
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            const scale = file.type === 'image/png' ? 1 : Math.min(1, MAX_W / (img.naturalWidth || MAX_W));
+            const w = Math.round((img.naturalWidth || MAX_W) * scale);
+            const h = Math.round((img.naturalHeight || w) * scale);
+            const c = document.createElement('canvas');
+            c.width = w; c.height = h;
+            c.getContext('2d').drawImage(img, 0, 0, w, h);
+            const outType = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+            const outQ    = file.type === 'image/png' ? 1 : QUALITY;
+            c.toBlob(blob => {
+              resolve(blob ? new File([blob], file.name, { type: outType }) : file);
+            }, outType, outQ);
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+          img.src = url;
+        });
+      }
 
+      /* ── Upload tab : drag & drop / file input ── */
       if ($drop && $file) {
         ['dragenter','dragover'].forEach(ev=>{
-          $drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); $drop.classList.add('drag'); });
+          $drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); $drop.classList.add('drag'); });
         });
         ['dragleave','drop'].forEach(ev=>{
-          $drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); $drop.classList.remove('drag'); });
+          $drop.addEventListener(ev, e=>{ e.preventDefault(); e.stopPropagation(); $drop.classList.remove('drag'); });
         });
-        $drop.addEventListener('drop', e=>{
-          const files = Array.from(e.dataTransfer.files || []);
-          pushToQueue(files);
-        });
-        $file.addEventListener('change', e=>{
-          pushToQueue(Array.from($file.files||[]));
-          $file.value = '';
-        });
+        $drop.addEventListener('drop', e=>{ pushToQueue(Array.from(e.dataTransfer.files||[])); });
+        $file.addEventListener('change', e=>{ pushToQueue(Array.from($file.files||[])); $file.value=''; });
       }
 
-      function pushToQueue(files){
-        const allowed = ['application/pdf','image/jpeg','image/png'];
+      async function pushToQueue(files) {
+        const allowed = ['application/pdf','image/jpeg','image/png','image/gif'];
         for (const f of files) {
           if (!allowed.includes(f.type)) continue;
-          if (f.size > 10*1024*1024) continue;
-          uplQueue.push(f);
+          if (f.size > 10 * 1024 * 1024) { alert(`${f.name} dépasse 10 Mo.`); continue; }
+
+          let file = f;
+          if (['image/jpeg','image/png'].includes(f.type)) {
+            file = await compressImageFile(f);
+          }
+
+          uplQueue.push(file);
           const li = document.createElement('div');
-          li.className='cap-item';
-          li.innerHTML = '📄 <small>'+f.name+' ('+Math.round(f.size/1024)+' Ko)</small>';
+          li.className = 'cap-item';
+          const icon = f.type === 'application/pdf' ? '📄' : '🖼️';
+          const sizeOrig = Math.round(f.size / 1024);
+          const sizeNew  = Math.round(file.size / 1024);
+          const tag = (file.size < f.size) ? `<span class="cap-compress-tag">→ ${sizeNew} Ko ✓</span>` : '';
+          li.innerHTML = `${icon} <small>${f.name} (${sizeOrig} Ko)${tag}</small>`;
           $uplList.appendChild(li);
         }
-        dbg('files queued', uplQueue.map(f=>({name:f.name,size:f.size,type:f.type})));
         refreshDoneState();
       }
 
-      $modal.querySelector('[data-act="done"]').addEventListener('click', async ()=>{
+      /* ── Valider ── */
+      $btnDone.addEventListener('click', async () => {
         if (uplQueue.length > 0) {
           const fd = new FormData();
           fd.append('storeDir', STORE_DIR);
           fd.append('mode', 'upload');
-          uplQueue.forEach(f=> fd.append('files[]', f, f.name));
-          if (DEBUG) fd.append('debug', '1');
+          uplQueue.forEach(f => fd.append('files[]', f, f.name));
           const ctrl = registerController(new AbortController());
           setUploading(true);
-          try{
-            dbg('POST files ->', {ENDPOINT, count: uplQueue.length});
-            const resp = await fetch(ENDPOINT, {method:'POST', body: fd, signal: ctrl.signal});
-            const text = await resp.text();
-            dbg('raw response (files)', text.slice(0, 400) + (text.length>400?'…':''));
-            let json = null; try{ json = JSON.parse(text); }catch(e){ dbg('JSON parse error', e?.message); }
-            if (json && json._debug) { dbg('SERVER DEBUG (files)', '— dump attached —'); dbgServerDump(json._debug); }
-            if (json && json.ok) {
-              for (const p of json.files) { lastSavedPaths.unshift(p); }
-              uplQueue = [];
-              $uplList.innerHTML = '';
+          try {
+            const resp = await fetch(ENDPOINT, { method:'POST', body:fd, signal:ctrl.signal });
+            const json = await resp.json();
+            if (json?.ok) {
+              for (const p of json.files) lastSavedPaths.unshift(p);
+              uplQueue = []; $uplList.innerHTML = '';
             } else {
-              alert('Erreur upload (fichiers).'); dbg('files upload failed', json);
+              alert('Erreur upload (fichiers).');
             }
-          } catch(e){
-            dbg('fetch error (files)', e?.message || e);
+          } catch(e) {
+            alert('Erreur réseau.');
           } finally {
             setUploading(false);
-            activeControllers = activeControllers.filter(c => c !== ctrl);
+            activeControllers = activeControllers.filter(c=>c!==ctrl);
           }
         }
-        if (onDoneCb) { try { onDoneCb(lastSavedPaths.slice()); } catch(e){ dbg('onDone error', e?.message); } }
+        if (onDoneCb) { try { onDoneCb(lastSavedPaths.slice()); } catch(e){} }
         _modal().hide();
       });
 
-      $modal.addEventListener('shown.bs.modal', async ()=>{
-        lastSavedPaths = [];
-        uplQueue = [];
-        isUploading = 0;
-        activeControllers = [];
+      /* ── Cycle de vie du modal ── */
+      $modal.addEventListener('shown.bs.modal', async () => {
+        lastSavedPaths = []; uplQueue = []; isUploading = 0; activeControllers = [];
         $uplList && ($uplList.innerHTML = '');
         $btnDone.disabled = true;
-        if ($dbgClient) $dbgClient.textContent = '–';
-        if ($dbgServer) $dbgServer.textContent = '–';
-        dbg('modal shown');
         await startCamera();
       });
-      $modal.addEventListener('hidden.bs.modal', async ()=>{
+
+      $modal.addEventListener('hidden.bs.modal', async () => {
+        if (mediaRec && mediaRec.state === 'recording') { mediaRec.stop(); mediaRec = null; }
         abortAllUploads();
+        _removeVideoPlayer();
         await stopCamera();
-        if (previewEl && previewEl.tagName === 'IMG') { previewEl.remove(); previewEl = null; }
         $canvas.style.display = 'none';
-        $video.style.display = 'block';
+        $video.style.display  = 'block';
         $btnRecap.disabled = true;
-        $uplList && ($uplList.innerHTML = '');
-        $btnGif.classList.remove('recording','uploading');
-        $btnGif.textContent = 'Vidéo';
-        dbg('modal hidden, cleaned');
+        $btnVid.classList.remove('recording','uploading');
+        $btnVid.textContent = 'Vidéo';
+        lastSavedPaths = []; uplQueue = [];
       });
 
       window.openCaptureModal = function(opts){
         onDoneCb = (opts && typeof opts.onDone === 'function') ? opts.onDone : null;
-        dbg('openCaptureModal', {onDone: !!onDoneCb, STORE_DIR, ENDPOINT});
         _modal().show();
       };
     })();
-  
-/* Auto-shim injecté par includes/capture.php — ne nécessite aucune configuration côté page */
-(function () {
-  // construit automatiquement l'URL basée sur la page courante (fonctionne en sous-dossier)
-  const ABS = new URL('includes/capture.php?capture_upload=1', document.baseURI || location.href).href;
 
+/* Auto-shim : réécrit les requêtes capture_upload vers l'URL absolue de includes/capture.php */
+(function () {
+  const ABS = new URL('includes/capture.php?capture_upload=1', document.baseURI || location.href).href;
   const _fetch = window.fetch;
   function hasUp(u){ return /(?:^|[?&])capture_upload=1\b/.test(u); }
-  function hasDbg(u){ return /(?:^|[?&])debug=1\b/.test(u); }
 
   window.fetch = function (input, init) {
     try {
       if (typeof input === 'string' && hasUp(input)) {
-        input = ABS + (hasDbg(input) ? '&debug=1' : '');
+        input = ABS;
       } else if (input && typeof input === 'object' && 'url' in input && hasUp(input.url)) {
-        const newUrl = ABS + (hasDbg(input.url) ? '&debug=1' : '');
-        input = new Request(newUrl, input); // conserve méthode/headers/body
+        input = new Request(ABS, input);
       }
-    } catch (e) {
-      console.warn('capture.shim error', e);
-    }
-
-    // s'assurer que les cookies/session sont envoyés
+    } catch (e) {}
     if (!init) init = {};
     if (!('credentials' in init)) init.credentials = 'same-origin';
     return _fetch(input, init);

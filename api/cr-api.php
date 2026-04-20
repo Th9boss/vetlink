@@ -29,7 +29,7 @@ try {
         echo json_encode(['ok'=>0,'msg'=>'Imagerie introuvable']); exit;
     }
 
-    $up = db()->prepare("UPDATE imageries SET compte_rendu=? WHERE id=?");
+    $up = db()->prepare("UPDATE imageries SET compte_rendu=?, updated_at=NOW() WHERE id=?");
     $up->execute([$text, $imid]);
 
     echo json_encode(['ok'=>1,'text'=>$text]); exit;

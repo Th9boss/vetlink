@@ -381,7 +381,7 @@ $page = max(1, (int)($_GET['p'] ?? 1));
             <div class="card-body p-3 p-md-4">
               <div class="d-flex align-items-start justify-content-between gap-2">
                 <div>
-                  <h2 class="h6 mb-1">${title}</h2>
+                  <a class="h6 mb-1 text-decoration-none text-dark d-block" href="index.php?page=client_view&id=${c.id}">${title}</a>
                   <div class="text-muted small">${address}</div>
                 </div>
                 <a class="chip-soft text-decoration-none" href="index.php?page=patients&q=${encodeURIComponent(clientTitle(c))}" aria-label="Animaux ${Number(c.patient_count || 0)}">

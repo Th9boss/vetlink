@@ -229,12 +229,10 @@ $list = db()->prepare("
 $list->execute([$patient_id]);
 $rows = $list->fetchAll();
 
-/* Injection capture (debug ON) */
 capture_handle($storeRel, [
   'modal_id' => 'capIntervModal',
   'maxWidth' => 1600,
   'quality'  => 0.9,
-  'debug'    => (APP_ENV === 'dev' ? 1 : 0),
 ]);
 echo '<script>window.STORE_DIR = ' . json_encode($storeRel) . ';</script>';
 ?>
